@@ -1,14 +1,14 @@
 // GET /api/history[?format=csv|json] : all day records, newest first. format=csv or
 // format=json returns a download (the research export).
 import type { Config } from "@netlify/functions";
-import { requirePasscode } from "./lib/auth";
+import { requireUser } from "./lib/auth";
 import { handle, json } from "./lib/http";
 import { toCsv } from "./lib/export";
 import { listDays } from "./lib/store";
 import { PROMPT_VERSION } from "./lib/coach-prompt";
 
 export default handle(async (req) => {
-  requirePasscode(req);
+  requireUser(req);
   const format = new URL(req.url).searchParams.get("format");
   const days = await listDays();
   const stamp = new Date().toISOString().slice(0, 10);

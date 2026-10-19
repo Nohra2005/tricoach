@@ -1,7 +1,7 @@
 // POST /api/match : re-runs activity matching for the last 30 days' plans that have
 // no matched activity yet (Garmin can take a while to sync).
 import type { Config } from "@netlify/functions";
-import { requirePasscode } from "./lib/auth";
+import { requireUser } from "./lib/auth";
 import { handle, json } from "./lib/http";
 import { addDays } from "./lib/dates";
 import { getActivities, summarise } from "./lib/intervals";
@@ -9,7 +9,7 @@ import { matchActivity } from "./lib/match";
 import { listDays, now, putDay } from "./lib/store";
 
 export default handle(async (req) => {
-  requirePasscode(req);
+  requireUser(req);
   const today = new Date().toISOString().slice(0, 10);
   const from = addDays(today, -30);
   const pending = (await listDays()).filter((d) => d.plan && !d.matched_activity && d.date >= from && d.date <= today);

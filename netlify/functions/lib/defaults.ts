@@ -36,3 +36,27 @@ export const DEFAULT_SETTINGS: Settings = {
     focus: "",
   },
 };
+
+// Starting point for any account other than the first: fill it in on the Settings screen.
+export const BLANK_SETTINGS: Settings = {
+  profile: {
+    name: "",
+    history: "",
+    swim: "",
+    bike: "",
+    run: "",
+    life: "",
+    other_notes: "",
+  },
+  plan: {
+    goal_race: "",
+    goal_race_date: "",
+    ftp_watts: null,
+    threshold_run_pace: "",
+    swim_css: "",
+    max_hard_per_week: 2,
+    usual_swim_days: [],
+    set_sessions: [],
+    focus: "",
+  },
+};

@@ -1,7 +1,8 @@
 // GET /api/health : checks env vars, the intervals.icu key and the AI provider key, and reports
 // which data fields came back. Without the passcode it only reports which env vars are set.
 import type { Config } from "@netlify/functions";
-import { requirePasscode } from "./lib/auth";
+import { requireUser } from "./lib/auth";
+import { configuredUsers } from "./lib/users";
 import { handle, json } from "./lib/http";
 import { getActivities, getAthlete, getWellness } from "./lib/intervals";
 import { addDays } from "./lib/dates";
@@ -9,11 +10,14 @@ import { provider } from "./lib/generator";
 import { PROMPT_VERSION } from "./lib/coach-prompt";
 
 const ENV = [
+  "APP_PASSCODE",
+  "APP_USER_NAME",
   "INTERVALS_API_KEY",
   "INTERVALS_ATHLETE_ID",
-  "APP_PASSCODE",
   "GROQ_API_KEY",
   "GROQ_MODEL",
+  "DEMO_DAILY_LIMIT",
+  ...[2, 3, 4, 5].flatMap((n) => [`USER${n}_NAME`, `USER${n}_PASSCODE`, `USER${n}_INTERVALS_API_KEY`, `USER${n}_INTERVALS_ATHLETE_ID`]),
 ];
 
 function fieldCoverage(rows: Record<string, unknown>[], fields: string[]) {
@@ -31,11 +35,21 @@ async function check<T>(fn: () => Promise<T>): Promise<{ ok: true; result: T } |
 }
 
 export default handle(async (req) => {
-  const env = Object.fromEntries(ENV.map((k) => [k, Boolean(process.env[k])]));
+  // Booleans only: which variables are set, never their values. Unset optional ones are left out.
+  const env = Object.fromEntries(ENV.filter((k) => !/^USER[2-5]_/.test(k) || process.env[k]).map((k) => [k, Boolean(process.env[k])]));
+  const passcodes = configuredUsers().map((u) => u.passcode);
+  const duplicatePasscodes = new Set(passcodes).size !== passcodes.length;
+  let user;
   try {
-    requirePasscode(req);
+    user = requireUser(req);
   } catch {
-    return json({ authenticated: false, env, note: "Send the passcode header to run the API checks." });
+    return json({
+      authenticated: false,
+      env,
+      accounts: configuredUsers().length,
+      ...(duplicatePasscodes ? { warning: "Two accounts have the same passcode; only the first will be reachable." } : {}),
+      note: "Send the passcode header to run the API checks.",
+    });
   }
 
   const today = new URL(req.url).searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
@@ -91,7 +105,7 @@ export default handle(async (req) => {
     }),
   ]);
 
-  return json({ authenticated: true, env, date: today, prompt_version: PROMPT_VERSION, intervals: { athlete, wellness, activities }, ai });
+  return json({ authenticated: true, account: { id: user.id, name: user.name, kind: user.kind }, env, date: today, prompt_version: PROMPT_VERSION, intervals: { athlete, wellness, activities }, ai });
 });
 
 export const config: Config = { path: "/api/health" };

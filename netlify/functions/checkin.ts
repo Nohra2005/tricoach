@@ -2,7 +2,7 @@
 import type { Config } from "@netlify/functions";
 import { z } from "zod";
 import { CheckIn, DateStr } from "../../shared/schemas";
-import { requirePasscode } from "./lib/auth";
+import { requireUser } from "./lib/auth";
 import { handle, json, readJson } from "./lib/http";
 import { loadMetrics } from "./lib/data";
 import { emptyDay, getDay, now, putDay } from "./lib/store";
@@ -10,7 +10,7 @@ import { emptyDay, getDay, now, putDay } from "./lib/store";
 const Body = z.object({ date: DateStr, checkin: CheckIn });
 
 export default handle(async (req) => {
-  requirePasscode(req);
+  requireUser(req);
   const { date, checkin } = Body.parse(await readJson(req));
   const [metrics, existing] = await Promise.all([loadMetrics(date), getDay(date)]);
   const day = existing ?? emptyDay(date);

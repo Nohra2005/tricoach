@@ -3,7 +3,7 @@
 import type { Config } from "@netlify/functions";
 import { z } from "zod";
 import { DateStr, Feedback } from "../../shared/schemas";
-import { requirePasscode } from "./lib/auth";
+import { requireUser } from "./lib/auth";
 import { HttpError, handle, json, readJson } from "./lib/http";
 import { getActivities, summarise } from "./lib/intervals";
 import { matchActivity } from "./lib/match";
@@ -12,7 +12,7 @@ import { getDay, now, putDay } from "./lib/store";
 const Body = z.object({ date: DateStr, feedback: Feedback });
 
 export default handle(async (req) => {
-  requirePasscode(req);
+  requireUser(req);
   const { date, feedback } = Body.parse(await readJson(req));
   const day = await getDay(date);
   if (!day?.plan) throw new HttpError(409, "There is no plan for this date");

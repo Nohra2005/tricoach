@@ -9,7 +9,9 @@
 // Every field is optional in practice; missing or null values become null, never 0.
 import { z } from "zod";
 import type { ActivitySummary } from "../../../shared/schemas";
-import { HttpError, env } from "./http";
+import { HttpError } from "./http";
+import { currentUser } from "./users";
+import { demoApi } from "./demo";
 import { addDays } from "./dates";
 
 // INTERVALS_BASE_URL is only for local testing against scripts/mock-apis.mjs.
@@ -109,19 +111,29 @@ export const AthleteSchema = z.looseObject({
 });
 export type Athlete = z.infer<typeof AthleteSchema>;
 
-function authHeader(): string {
-  return "Basic " + Buffer.from(`API_KEY:${env("INTERVALS_API_KEY")}`).toString("base64");
+// Credentials come from the current account (users.ts). The demo never calls intervals.icu.
+function credentials() {
+  const user = currentUser();
+  if (!user.intervals) {
+    throw new HttpError(500, `No intervals.icu API key or athlete ID is set for ${user.name}`);
+  }
+  return user.intervals;
 }
 
 async function call(method: "GET" | "POST", path: string, params: Record<string, string> = {}, body?: unknown): Promise<unknown> {
-  const url = new URL(`${BASE}/athlete/${encodeURIComponent(env("INTERVALS_ATHLETE_ID"))}${path}`);
+  if (currentUser().kind === "demo") {
+    if (method !== "GET") throw new HttpError(403, "The demo does not write to intervals.icu");
+    return demoApi(path, params);
+  }
+  const { apiKey, athleteId } = credentials();
+  const url = new URL(`${BASE}/athlete/${encodeURIComponent(athleteId)}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   let res: Response;
   try {
     res = await fetch(url, {
       method,
       headers: {
-        authorization: authHeader(),
+        authorization: "Basic " + Buffer.from(`API_KEY:${apiKey}`).toString("base64"),
         accept: "application/json",
         ...(body === undefined ? {} : { "content-type": "application/json" }),
       },
