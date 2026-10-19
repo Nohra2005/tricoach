@@ -1,6 +1,6 @@
 // Presentational components shared by the screens.
 import type { ReactNode } from "react";
-import type { Flag, Metrics, Plan } from "../../shared/schemas";
+import type { Flag, Metrics, Plan, StoredPlan } from "../../shared/schemas";
 
 export function fmt(v: number | null | undefined, unit = "", dp = 0): string {
   if (v === null || v === undefined) return "no data";
@@ -142,7 +142,7 @@ export function IntensityTag({ intensity }: { intensity: Plan["intensity"] }) {
   return <span className={`tag ${cls}`}>{intensity}</span>;
 }
 
-export function SessionCard({ plan, children }: { plan: Plan; children?: ReactNode }) {
+export function SessionCard({ plan, children }: { plan: StoredPlan; children?: ReactNode }) {
   return (
     <section className={`session ${sportClass(plan.sport)}`} aria-label="Today's session">
       <div className={`session-band${plan.sport === "brick" ? " brick" : ""}`}>

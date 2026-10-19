@@ -84,6 +84,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ date, feedback }),
     }),
+  sendWorkout: (date: string) => call(DayOnly, "/api/send-workout", { method: "POST", body: JSON.stringify({ date }) }),
   match: () => call(z.object({ checked: z.number(), matched: z.number() }), "/api/match", { method: "POST" }),
   history: () => call(z.object({ days: z.array(DayRecord) }), "/api/history"),
   settings: () => call(Settings, "/api/settings"),

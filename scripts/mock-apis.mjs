@@ -87,10 +87,10 @@ const goodPlan = {
   total_minutes: 45,
   intensity: "easy",
   steps: [
-    { label: "Warm-up", minutes: null, distance_m: 300, target: "Easy, RPE 3", reps: null, notes: null },
-    { label: "Catch-up drill", minutes: null, distance_m: 50, target: "RPE 4, long strokes", reps: 6, notes: "20 s rest" },
-    { label: "Main set", minutes: null, distance_m: 200, target: "2:15/100m", reps: 4, notes: "30 s rest" },
-    { label: "Cool-down", minutes: null, distance_m: 200, target: "Easy", reps: null, notes: null },
+    { label: "Warm-up", minutes: null, distance_m: 300, target: "Easy, RPE 3", target_spec: { kind: "rpe", low: 3, high: 3 }, reps: null, rest_seconds: null, notes: null },
+    { label: "Catch-up drill", minutes: null, distance_m: 50, target: "RPE 4, long strokes", target_spec: { kind: "rpe", low: 4, high: 4 }, reps: 6, rest_seconds: 20, notes: "20 s rest" },
+    { label: "Main set", minutes: null, distance_m: 200, target: "2:15 to 2:20/100m", target_spec: { kind: "pace", low: 135, high: 140 }, reps: 4, rest_seconds: 30, notes: "30 s rest" },
+    { label: "Cool-down", minutes: null, distance_m: 200, target: "Easy", target_spec: { kind: "none", low: null, high: null }, reps: null, rest_seconds: null, notes: null },
   ],
   why: "HRV is 38 ms, below your normal range of 50 to 60 ms, and form is -6. Sleep was 7.4 h, inside your range. An easy swim keeps the routine without adding load.",
   easier_option: "Swim 1000 m easy with no main set.",
@@ -113,6 +113,14 @@ createServer(async (req, res) => {
     if (url.pathname.endsWith("/wellness")) return send(res, 200, wellness());
     if (url.pathname.endsWith("/activities")) return send(res, 200, activities());
     if (/\/athlete\/[^/]+$/.test(url.pathname)) return send(res, 200, athlete);
+    if (url.pathname.endsWith("/events") && req.method === "POST") {
+      const ev = JSON.parse(body);
+      console.log("  event:", url.search, JSON.stringify({ category: ev.category, type: ev.type, uid: ev.uid, date: ev.start_date_local, name: ev.name }));
+      console.log(ev.description.split("\n").map((l) => "    | " + l).join("\n"));
+      // Rough stand-in for intervals.icu parsing: one step per "- " line.
+      const steps = ev.description.split("\n").filter((l) => l.startsWith("- ")).map((l) => ({ text: l }));
+      return send(res, 200, { id: 4242, ...ev, workout_doc: { duration: ev.moving_time, steps } });
+    }
   }
   if (url.pathname.startsWith("/groq/openai/v1/models/")) {
     return send(res, 200, { id: url.pathname.split("/models/")[1], object: "model", owned_by: "mock" });

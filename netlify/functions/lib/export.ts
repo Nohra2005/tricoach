@@ -44,6 +44,8 @@ const COLUMNS: [string, (d: DayRecord) => Cell][] = [
   ["latency_ms", (d) => d.generation?.latency_ms],
   ["input_tokens", (d) => d.generation?.input_tokens],
   ["output_tokens", (d) => d.generation?.output_tokens],
+  ["sent_to_watch_at", (d) => d.watch?.sent_at],
+  ["sent_to_watch_steps", (d) => d.watch?.parsed_steps],
   ["followed", (d) => d.feedback?.followed],
   ["followed_reason", (d) => d.feedback?.reason],
   ["rpe", (d) => d.feedback?.rpe],

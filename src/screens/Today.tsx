@@ -256,6 +256,64 @@ function YourNumbers({ m }: { m: Metrics }) {
   );
 }
 
+// ---------- send to watch ----------
+
+const WATCHABLE = new Set(["swim", "bike", "run"]);
+
+function WatchPanel(props: { day: DayRecord; busy: boolean; offline: boolean; onSend: () => void }) {
+  const { day, busy, offline, onSend } = props;
+  const plan = day.plan!;
+  if (!WATCHABLE.has(plan.sport)) return null;
+  const w = day.watch;
+  const legacy = plan.steps.some((s) => s.target_spec === null);
+  const stale = !!w && (w.plan_title !== plan.title || (day.generation ? w.sent_at < day.generation.finished_at : false));
+  return (
+    <div className="card" style={{ margin: "14px 0 0", background: "var(--surface-2)", border: "none" }}>
+      <div className="spread">
+        <div>
+          <div className="eyebrow muted">Garmin</div>
+          {w && !stale ? (
+            <p style={{ margin: "2px 0 0", fontWeight: 750 }}>
+              On your intervals.icu calendar
+              <span className="small muted" style={{ fontWeight: 400 }}>
+                {" "}
+                · {new Date(w.sent_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                {w.parsed_steps !== null ? ` · ${w.parsed_steps} steps` : ""}
+                {w.parsed_minutes ? ` · ${w.parsed_minutes} min` : ""}
+              </span>
+            </p>
+          ) : (
+            <p style={{ margin: "2px 0 0", fontWeight: 750 }}>
+              {stale ? "You rewrote the session after sending it." : "Not on your watch yet."}
+            </p>
+          )}
+        </div>
+      </div>
+      {legacy ? (
+        <p className="small muted">This plan was written before watch support. Change the check-in and rewrite it to send it.</p>
+      ) : (
+        <button className="primary" style={{ marginTop: 10 }} disabled={busy || offline} onClick={onSend}>
+          {busy ? "Sending..." : w && !stale ? "Send again" : stale ? "Send the new version" : "Send to watch"}
+        </button>
+      )}
+      {w && (
+        <details style={{ marginTop: 8 }}>
+          <summary className="small" style={{ textDecoration: "underline" }}>
+            What was sent
+          </summary>
+          <pre className="small" style={{ whiteSpace: "pre-wrap", margin: "8px 0 0" }}>
+            {w.text}
+          </pre>
+        </details>
+      )}
+      <p className="small muted" style={{ marginBottom: 0 }}>
+        Then sync your watch. The workout appears under Training &gt; Workouts or on today's calendar.
+        {w && w.parsed_steps === 0 ? " intervals.icu found no steps in it; check What was sent." : ""}
+      </p>
+    </div>
+  );
+}
+
 function lastGenerationError(day: DayRecord): string | null {
   const last = [...day.events].reverse().find((e) => e.type === "generate" || e.type === "generate_failed");
   return last?.type === "generate_failed" ? last.detail : null;
@@ -271,6 +329,7 @@ export function Today() {
   const [busy, setBusy] = useState(false);
   const [generating, setGenerating] = useState<number | null>(null);
   const [editCheckin, setEditCheckin] = useState(false);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -327,6 +386,19 @@ export function Today() {
     await generate();
   }
 
+  async function sendToWatch() {
+    setSending(true);
+    setError(null);
+    try {
+      const { day } = await api.sendWorkout(date);
+      setData((d) => (d ? { ...d, day } : d));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function submitFeedback(f: Feedback) {
     setBusy(true);
     setError(null);
@@ -369,7 +441,9 @@ export function Today() {
               </div>
             ) : day.plan && !editCheckin ? (
               <>
-                <SessionCard plan={day.plan} />
+                <SessionCard plan={day.plan}>
+                  <WatchPanel day={day} busy={sending} offline={!!offlineSince} onSend={sendToWatch} />
+                </SessionCard>
                 {day.feedback ? (
                   <div className="card">
                     <div className="eyebrow muted">Your feedback</div>

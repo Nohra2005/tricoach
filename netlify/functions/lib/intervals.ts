@@ -113,13 +113,19 @@ function authHeader(): string {
   return "Basic " + Buffer.from(`API_KEY:${env("INTERVALS_API_KEY")}`).toString("base64");
 }
 
-async function get(path: string, params: Record<string, string> = {}): Promise<unknown> {
+async function call(method: "GET" | "POST", path: string, params: Record<string, string> = {}, body?: unknown): Promise<unknown> {
   const url = new URL(`${BASE}/athlete/${encodeURIComponent(env("INTERVALS_ATHLETE_ID"))}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   let res: Response;
   try {
     res = await fetch(url, {
-      headers: { authorization: authHeader(), accept: "application/json" },
+      method,
+      headers: {
+        authorization: authHeader(),
+        accept: "application/json",
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(9000),
     });
   } catch (e) {
@@ -135,6 +141,8 @@ async function get(path: string, params: Record<string, string> = {}): Promise<u
   return res.json();
 }
 
+const get = (path: string, params: Record<string, string> = {}) => call("GET", path, params);
+
 function parseArray<T>(schema: z.ZodType<T>, data: unknown, what: string): T[] {
   if (!Array.isArray(data)) throw new HttpError(502, `intervals.icu returned non-array for ${what}`);
   const out: T[] = [];
@@ -144,6 +152,44 @@ function parseArray<T>(schema: z.ZodType<T>, data: unknown, what: string): T[] {
     else console.warn(`Skipping unparseable ${what} record`, r.error.issues.slice(0, 3));
   }
   return out;
+}
+
+// POST /athlete/{id}/events?upsertOnUid=true : creates a planned workout on the calendar,
+// or replaces the one with the same uid. intervals.icu parses the description (workout
+// builder text) into workout_doc and, if enabled in its Garmin settings, sends it to
+// Garmin Connect.
+export const EventResponse = z.looseObject({
+  id: z.union([z.string(), z.number()]).transform(String),
+  workout_doc: z.unknown().optional(),
+});
+
+export interface PlannedWorkout {
+  uid: string;
+  date: string;
+  type: string;
+  name: string;
+  description: string;
+  moving_time: number;
+  indoor: boolean;
+}
+
+export async function upsertWorkout(w: PlannedWorkout) {
+  const data = await call(
+    "POST",
+    "/events",
+    { upsertOnUid: "true" },
+    {
+      category: "WORKOUT",
+      start_date_local: `${w.date}T00:00:00`,
+      type: w.type,
+      name: w.name,
+      description: w.description,
+      moving_time: w.moving_time,
+      indoor: w.indoor,
+      uid: w.uid,
+    },
+  );
+  return EventResponse.parse(data);
 }
 
 export async function getAthlete() {
