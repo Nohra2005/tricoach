@@ -187,6 +187,7 @@ export const Attempt = z.object({
 });
 
 export const Generation = z.object({
+  provider: z.string().optional(),
   model: z.string(),
   answered_by: z.string().nullable(),
   prompt_version: z.string(),

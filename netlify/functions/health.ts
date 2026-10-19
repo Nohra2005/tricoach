@@ -1,15 +1,23 @@
-// GET /api/health : checks env vars, intervals.icu and Anthropic keys, and reports
+// GET /api/health : checks env vars, the intervals.icu key and the AI provider key, and reports
 // which data fields came back. Without the passcode it only reports which env vars are set.
-import Anthropic from "@anthropic-ai/sdk";
 import type { Config } from "@netlify/functions";
 import { requirePasscode } from "./lib/auth";
 import { handle, json } from "./lib/http";
 import { getActivities, getAthlete, getWellness } from "./lib/intervals";
 import { addDays } from "./lib/dates";
-import { modelName } from "./lib/claude";
+import { provider } from "./lib/generator";
 import { PROMPT_VERSION } from "./lib/coach-prompt";
 
-const ENV = ["INTERVALS_API_KEY", "INTERVALS_ATHLETE_ID", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "APP_PASSCODE"];
+const ENV = [
+  "INTERVALS_API_KEY",
+  "INTERVALS_ATHLETE_ID",
+  "APP_PASSCODE",
+  "LLM_PROVIDER",
+  "GROQ_API_KEY",
+  "GROQ_MODEL",
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_MODEL",
+];
 
 function fieldCoverage(rows: Record<string, unknown>[], fields: string[]) {
   return Object.fromEntries(
@@ -34,7 +42,7 @@ export default handle(async (req) => {
   }
 
   const today = new URL(req.url).searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
-  const [athlete, wellness, activities, anthropic] = await Promise.all([
+  const [athlete, wellness, activities, ai] = await Promise.all([
     check(async () => {
       const a = await getAthlete();
       return { id: a.id, name: a.name };
@@ -58,12 +66,11 @@ export default handle(async (req) => {
       };
     }),
     check(async () => {
-      const m = await new Anthropic({ maxRetries: 0, timeout: 8000 }).models.retrieve(modelName());
-      return { model: m.id, display_name: m.display_name };
+      return provider().check();
     }),
   ]);
 
-  return json({ authenticated: true, env, date: today, prompt_version: PROMPT_VERSION, intervals: { athlete, wellness, activities }, anthropic });
+  return json({ authenticated: true, env, date: today, prompt_version: PROMPT_VERSION, intervals: { athlete, wellness, activities }, ai });
 });
 
 export const config: Config = { path: "/api/health" };

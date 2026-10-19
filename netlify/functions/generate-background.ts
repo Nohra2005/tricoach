@@ -5,12 +5,17 @@ import { DateStr, type DayRecord } from "../../shared/schemas";
 import { requirePasscode } from "./lib/auth";
 import { addDays, weekday } from "./lib/dates";
 import { hardDates, loadMetrics } from "./lib/data";
-import { generatePlan, modelName } from "./lib/claude";
+import { generatePlan, provider } from "./lib/generator";
 import { PROMPT_VERSION } from "./lib/coach-prompt";
 import { HARD_RULE } from "./lib/intervals";
 import { getDay, getSettings, listDays, now, putDay, putJob } from "./lib/store";
 
 const Body = z.object({ jobId: z.string().uuid(), date: DateStr });
+
+// Null fields carry no information for the model and cost tokens.
+function dropNulls<T extends object>(o: T): Partial<T> {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null)) as Partial<T>;
+}
 
 function pastPlans(history: DayRecord[], date: string) {
   const from = addDays(date, -14);
@@ -52,7 +57,7 @@ export default async (req: Request): Promise<void> => {
         form_note: "tsb = ctl - atl (fitness minus fatigue); negative means fatigued",
       },
       last_7_days_by_sport: metrics.last7,
-      sessions_last_14_days: metrics.activities14.map(({ id: _id, start_local: _s, ...a }) => a),
+      sessions_last_14_days: metrics.activities14.map(({ id: _id, start_local: _s, ...a }) => dropNulls(a)),
       hard_days_last_14: hard,
       hard_rule: HARD_RULE,
       previous_plans_last_14_days: pastPlans(history, date),
@@ -69,7 +74,8 @@ export default async (req: Request): Promise<void> => {
     const finishedAt = now();
     day.metrics = metrics;
     day.generation = {
-      model: modelName(),
+      provider: provider().name,
+      model: provider().model(),
       answered_by: result.answeredBy,
       prompt_version: PROMPT_VERSION,
       started_at: startedAt,

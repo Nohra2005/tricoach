@@ -35,6 +35,7 @@ const COLUMNS: [string, (d: DayRecord) => Cell][] = [
   ["plan_why", (d) => d.plan?.why],
   ["plan_warnings", (d) => d.plan?.warnings.join(" | ")],
   ["replans", (d) => d.previous_plans.length],
+  ["provider", (d) => d.generation?.provider],
   ["model", (d) => d.generation?.model],
   ["answered_by", (d) => d.generation?.answered_by],
   ["prompt_version", (d) => d.generation?.prompt_version],
