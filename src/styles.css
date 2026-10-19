@@ -780,3 +780,54 @@ pre {
     margin-left: calc(216px + (100vw - 216px - 1180px) / 2);
   }
 }
+
+/* ---------- accounts and demo ---------- */
+
+.demo-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: 0.86rem;
+  padding: calc(8px + env(safe-area-inset-top)) 16px 8px;
+}
+.demo-banner button.link {
+  color: var(--on-ink);
+  padding: 4px 0;
+}
+.demo-banner + main {
+  padding-top: 12px;
+}
+.nav-user {
+  margin-top: 4px;
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 24px 0 16px;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+@media (min-width: 900px) {
+  .demo-banner {
+    margin-left: 216px;
+    padding: 10px 40px;
+  }
+}

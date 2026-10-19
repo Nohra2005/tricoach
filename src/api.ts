@@ -1,4 +1,5 @@
-// API client. Every call sends the passcode header and validates the response with zod.
+// API client. Every call sends the passcode header (or, in the demo, the visitor's random
+// sandbox id) and validates the response with zod.
 import { z } from "zod";
 import {
   DayRecord,
@@ -11,15 +12,46 @@ import {
 import { load, remove, save } from "./storage";
 
 const PASSCODE_KEY = "passcode";
+const DEMO_KEY = "demo";
 
 export function getPasscode(): string | null {
   return load<string>(PASSCODE_KEY);
 }
 export function setPasscode(p: string) {
+  remove(DEMO_KEY);
   save(PASSCODE_KEY, p);
 }
+// Signs out of both a real account and the demo.
 export function clearPasscode() {
   remove(PASSCODE_KEY);
+  remove(DEMO_KEY);
+}
+
+export function getDemoId(): string | null {
+  return load<string>(DEMO_KEY);
+}
+export function isDemoMode(): boolean {
+  return getDemoId() !== null;
+}
+// Each demo visitor gets a private sandbox, kept on this device.
+export function startDemo(): string {
+  const existing = getDemoId();
+  if (existing) return existing;
+  const id =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+          (Number(c) ^ (Math.random() * 16) >> (Number(c) / 4)).toString(16),
+        );
+  remove(PASSCODE_KEY);
+  save(DEMO_KEY, id);
+  return id;
+}
+
+function authHeaders(passcode: string | null): Record<string, string> {
+  const demo = getDemoId();
+  if (demo && passcode === getPasscode()) return { "x-tricoach-demo": demo };
+  return { "x-tricoach-passcode": passcode ?? "" };
 }
 
 export class ApiError extends Error {
@@ -36,7 +68,7 @@ async function request(path: string, init: RequestInit = {}, passcode = getPassc
   try {
     res = await fetch(path, {
       ...init,
-      headers: { "content-type": "application/json", "x-tricoach-passcode": passcode ?? "", ...init.headers },
+      headers: { "content-type": "application/json", ...authHeaders(passcode), ...init.headers },
     });
   } catch {
     throw new ApiError(0, "No connection");
@@ -72,6 +104,7 @@ export const api = {
     const body = (await res.json()) as { authenticated?: boolean };
     return body.authenticated === true;
   },
+  me: () => call(z.object({ id: z.string(), name: z.string(), kind: z.enum(["athlete", "demo"]) }), "/api/me"),
   health: () => request(`/api/health?date=${localDate()}`).then((r) => r.json() as Promise<unknown>),
   today: (date: string) => call(TodayResponse, `/api/today?date=${date}`),
   checkin: (date: string, checkin: CheckIn) =>

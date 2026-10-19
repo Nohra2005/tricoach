@@ -267,6 +267,7 @@ function WatchPanel(props: { day: DayRecord; busy: boolean; offline: boolean; on
   const w = day.watch;
   const legacy = plan.steps.some((s) => s.target_spec === null);
   const stale = !!w && (w.plan_title !== plan.title || (day.generation ? w.sent_at < day.generation.finished_at : false));
+  const simulated = !!w?.simulated;
   return (
     <div className="card" style={{ margin: "14px 0 0", background: "var(--surface-2)", border: "none" }}>
       <div className="spread">
@@ -274,7 +275,7 @@ function WatchPanel(props: { day: DayRecord; busy: boolean; offline: boolean; on
           <div className="eyebrow muted">Garmin</div>
           {w && !stale ? (
             <p style={{ margin: "2px 0 0", fontWeight: 750 }}>
-              On your intervals.icu calendar
+              {simulated ? "Demo: this is what would be sent" : "On your intervals.icu calendar"}
               <span className="small muted" style={{ fontWeight: 400 }}>
                 {" "}
                 · {new Date(w.sent_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}

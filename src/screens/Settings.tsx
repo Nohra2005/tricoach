@@ -15,7 +15,7 @@ const PROFILE_FIELDS: [keyof Settings["profile"], string][] = [
   ["other_notes", "Other notes for the coach"],
 ];
 
-export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
+export function SettingsScreen({ onSignOut, demo = false }: { onSignOut: () => void; demo?: boolean }) {
   const [s, setS] = useState<Settings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -254,7 +254,7 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
         >
           Check connections
         </button>
-        <button onClick={onSignOut}>Forget passcode</button>
+        <button onClick={onSignOut}>{demo ? "Exit demo" : "Sign out"}</button>
       </div>
       {health && (
         <pre className="card small" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
