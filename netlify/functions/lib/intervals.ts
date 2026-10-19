@@ -64,7 +64,50 @@ export type Activity = z.infer<typeof ActivitySchema>;
 // Activities that came from Strava are returned as stubs with a `_note` and no data.
 const HiddenActivitySchema = z.looseObject({ id: z.unknown(), _note: z.string() });
 
-export const AthleteSchema = z.looseObject({ id: z.string(), name: str });
+const numArray = z
+  .array(z.number().nullable())
+  .nullish()
+  .transform((v) => (v ?? []).filter((x): x is number => typeof x === "number" && Number.isFinite(x)));
+const strArray = z
+  .array(z.string().nullable())
+  .nullish()
+  .transform((v) => (v ?? []).map((x) => x ?? ""));
+
+// One entry per sport group in intervals.icu Settings (types like ["Ride", "VirtualRide"]).
+// hr_zones are bpm upper bounds, power_zones are % of FTP upper bounds, pace_zones are
+// % of threshold speed upper bounds, threshold_pace is a speed in m/s.
+export const SportSettingsSchema = z.looseObject({
+  types: z.array(z.string()).nullish().transform((v) => v ?? []),
+  ftp: num,
+  indoor_ftp: num,
+  lthr: num,
+  max_hr: num,
+  hr_zones: numArray,
+  hr_zone_names: strArray,
+  power_zones: numArray,
+  power_zone_names: strArray,
+  threshold_pace: num,
+  pace_units: str,
+  pace_zones: numArray,
+  pace_zone_names: strArray,
+});
+export type SportSettings = z.infer<typeof SportSettingsSchema>;
+
+export const AthleteSchema = z.looseObject({
+  id: z.string(),
+  name: str,
+  icu_resting_hr: num,
+  sportSettings: z
+    .array(z.unknown())
+    .nullish()
+    .transform((v) =>
+      (v ?? []).flatMap((s) => {
+        const r = SportSettingsSchema.safeParse(s);
+        return r.success ? [r.data] : [];
+      }),
+    ),
+});
+export type Athlete = z.infer<typeof AthleteSchema>;
 
 function authHeader(): string {
   return "Basic " + Buffer.from(`API_KEY:${env("INTERVALS_API_KEY")}`).toString("base64");

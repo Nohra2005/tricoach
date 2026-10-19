@@ -120,6 +120,38 @@ export const ActivitySummary = z.object({
 });
 export type ActivitySummary = z.infer<typeof ActivitySummary>;
 
+const SportThresholds = z.object({
+  threshold: z.string().nullable(), // "FTP 210 W", "4:45/km", "2:05/100m"
+  threshold_source: z.enum(["settings", "intervals.icu"]).nullable(),
+  indoor_ftp: z.number().nullable(),
+  lthr: z.number().nullable(),
+  max_hr: z.number().nullable(),
+  hr_zones: z.array(z.string()),
+  work_zones: z.array(z.string()), // power zones for bike, pace zones for swim and run
+});
+export const Thresholds = z.object({
+  swim: SportThresholds,
+  bike: SportThresholds,
+  run: SportThresholds,
+  notes: z.array(z.string()),
+});
+export type Thresholds = z.infer<typeof Thresholds>;
+
+const TypicalSport = z.object({
+  sessions: z.number().int(),
+  median_minutes: z.number().nullable(),
+  median_distance_km: z.number().nullable(),
+  median_avg_hr: z.number().nullable(),
+  median_pace: z.string().nullable(),
+  middle_half: z.string().nullable(), // 25th to 75th percentile pace
+  median_avg_watts: z.number().nullable(),
+});
+export const Typical = z.object({ days: z.number().int(), swim: TypicalSport, bike: TypicalSport, run: TypicalSport });
+export type Typical = z.infer<typeof Typical>;
+
+const LastValue = z.object({ value: z.number(), date: DateStr }).nullable();
+export const Latest = z.object({ hrv: LastValue, resting_hr: LastValue, sleep_hours: LastValue });
+
 export const Metrics = z.object({
   date: DateStr,
   today: z.object({
@@ -142,6 +174,10 @@ export const Metrics = z.object({
   last7: z.object({ swim: SportTotals, bike: SportTotals, run: SportTotals, other: SportTotals }),
   activities14: z.array(ActivitySummary),
   hidden_activities: z.number().int(),
+  // Added later; optional so day records saved before still parse.
+  latest: Latest.optional(), // most recent value in the last 42 days, for when today has none
+  thresholds: Thresholds.nullable().optional(),
+  typical: Typical.optional(),
 });
 export type Metrics = z.infer<typeof Metrics>;
 

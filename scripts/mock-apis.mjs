@@ -10,6 +10,7 @@
 //
 // MOCK_PLAN=bad makes the first model answer break a rule, to exercise the retry.
 // MOCK_429=1 makes the first Groq call return 429 with retry-after: 2.
+// MOCK_NO_TODAY=1 leaves today's HRV, resting HR and sleep out (not synced yet).
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.MOCK_PORT ?? 8787);
@@ -28,9 +29,34 @@ function wellness() {
     const row = { id: day(off), ctl: 55 + i * 0.1, atl: 60 + (i % 5), restingHR: 48 + (i % 3), weight: 58 };
     if (i % 7 !== 3) row.hrv = off === 0 ? 38 : 55 + ((i * 7) % 9) - 4; // today low, some days missing
     if (i % 6 !== 2) row.sleepSecs = (7 + (i % 3) * 0.4) * 3600;
+    if (off === 0 && process.env.MOCK_NO_TODAY) {
+      delete row.hrv;
+      delete row.sleepSecs;
+      delete row.restingHR;
+    }
     return row;
   });
 }
+
+const athlete = {
+  id: "i1",
+  name: "Mock Athlete",
+  sportSettings: [
+    {
+      types: ["Ride", "VirtualRide"],
+      ftp: 200,
+      indoor_ftp: 190,
+      lthr: 165,
+      max_hr: 185,
+      hr_zones: [138, 151, 158, 165, 171, 176, 185],
+      hr_zone_names: ["Recovery", "Aerobic", "Tempo", "SubThreshold", "SuperThreshold", "Aerobic Capacity", "Anaerobic"],
+      power_zones: [55, 75, 90, 105, 120, 150, 999],
+      power_zone_names: ["Active Recovery", "Endurance", "Tempo", "Threshold", "VO2 Max", "Anaerobic", "Neuromuscular"],
+    },
+    { types: ["Run", "TrailRun"], lthr: 170, max_hr: 190, threshold_pace: 3.508, pace_units: "MINS_KM", pace_zones: [77.5, 87.7, 94.3, 100, 103.4, 111.5, 999], hr_zones: [140, 153, 160, 170, 175, 180, 190] },
+    { types: ["Swim"], threshold_pace: 0.8, pace_units: "SECS_100M", pace_zones: [80, 90, 100, 999] },
+  ],
+};
 
 function activities() {
   const a = (off, type, mins, dist, load, intensity, extra = {}) => ({
@@ -86,7 +112,7 @@ createServer(async (req, res) => {
     if (!req.headers.authorization?.startsWith("Basic ")) return send(res, 401, { error: "no auth" });
     if (url.pathname.endsWith("/wellness")) return send(res, 200, wellness());
     if (url.pathname.endsWith("/activities")) return send(res, 200, activities());
-    if (/\/athlete\/[^/]+$/.test(url.pathname)) return send(res, 200, { id: "i1", name: "Mock Athlete" });
+    if (/\/athlete\/[^/]+$/.test(url.pathname)) return send(res, 200, athlete);
   }
   if (url.pathname.startsWith("/groq/openai/v1/models/")) {
     return send(res, 200, { id: url.pathname.split("/models/")[1], object: "model", owned_by: "mock" });
