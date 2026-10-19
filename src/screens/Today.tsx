@@ -314,6 +314,8 @@ function WatchPanel(props: { day: DayRecord; busy: boolean; offline: boolean; on
       )}
       <p className="small muted" style={{ marginBottom: 0 }}>
         Then sync your watch. The workout appears under Training &gt; Workouts or on today's calendar.
+        {plan.sport === "swim" &&
+          " Swims go to the watch as distances, repeats and rests; Garmin doesn't accept pace targets on pool steps, so check your paces here."}
       </p>
     </div>
   );

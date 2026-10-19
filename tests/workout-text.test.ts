@@ -37,7 +37,7 @@ describe("toWorkoutText", () => {
         "- 20s intensity=rest",
         "",
         "4x",
-        "- Main set 200mtr 2:20/100m pace",
+        "- Main set 200mtr",
         "- 30s intensity=rest",
         "",
         "- Cool-down 200mtr intensity=cooldown",
@@ -45,16 +45,16 @@ describe("toWorkoutText", () => {
     );
     // fallback without labels
     expect(toWorkoutText(plan, "simple").split("\n")[0]).toBe("- 300mtr intensity=warmup");
-    expect(toWorkoutText(plan, "simple")).toContain("- 200mtr 2:20/100m pace");
+    expect(toWorkoutText(plan, "simple")).not.toContain("pace");
   });
 
-  it("rounds a swim pace range to one pace in 5 s steps", () => {
+  it("never puts a target on a swim step (Garmin Connect rejects them)", () => {
     const plan: StoredPlan = {
       ...base,
       sport: "swim",
       steps: [step({ label: "Steady", distance_m: 400, target_spec: { kind: "pace", low: 128, high: 133 } })],
     };
-    expect(toWorkoutText(plan)).toBe("- Steady 400mtr 2:10/100m pace");
+    expect(toWorkoutText(plan)).toBe("- Steady 400mtr");
   });
 
   it("writes a bike with power and HR targets", () => {

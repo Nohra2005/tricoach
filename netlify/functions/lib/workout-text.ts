@@ -7,7 +7,11 @@
 //   - repeats: a line "4x" with a blank line before and after the block
 // Swim specifics (intervals.icu forum swim threads, and the intervals-icu-mcp changelog,
 // which checked what the server actually parses):
-//   - absolute swim pace needs the trailing "pace" keyword: "- 200mtr 1:45/100m pace"
+//   - swim steps are sent WITHOUT targets: Garmin Connect does not accept a speed/pace
+//     target on pool swim steps, and a swim workout with one shows "Unable to load
+//     steps" there. The pace stays in the app (the step's human-readable target).
+//   - pool length: intervals.icu uses 25 m unless told otherwise; an explicit
+//     "pool length" line has been reported to break the Garmin Connect view, so none is sent
 //   - only "intensity=rest" exports a real rest step to the device
 //   - "intensity=warmup" / "intensity=cooldown" mark the step type
 // If a description does not parse, intervals.icu stores it as plain text and Garmin
@@ -69,6 +73,7 @@ export type TextVariant = "full" | "simple";
 function target(step: Step, sport: StoredPlan["sport"]): string {
   const t = step.target_spec;
   if (!t || t.low === null || t.high === null) return "";
+  if (sport === "swim") return ""; // see the note at the top: Garmin rejects swim targets
   const range = (a: number, b: number) => (Math.round(a) === Math.round(b) ? `${Math.round(a)}` : `${Math.round(a)}-${Math.round(b)}`);
   switch (t.kind) {
     case "power_pct_ftp":
@@ -76,10 +81,6 @@ function target(step: Step, sport: StoredPlan["sport"]): string {
     case "hr_zone":
       return t.low === t.high ? `Z${t.low} HR` : `Z${t.low}-Z${t.high} HR`;
     case "pace": {
-      if (sport === "swim") {
-        // One absolute pace, in the form known to parse: "1:45/100m pace"
-        return `${fmtSecs(Math.round(((t.low + t.high) / 2) / 5) * 5)}/100m pace`;
-      }
       // slower pace first, as in the intervals.icu examples ("7:15-7:00/km Pace")
       return t.low === t.high ? `${fmtSecs(t.low)}/km Pace` : `${fmtSecs(t.high)}-${fmtSecs(t.low)}/km Pace`;
     }
