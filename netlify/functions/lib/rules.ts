@@ -51,6 +51,19 @@ export function checkPlan(plan: Plan, ctx: RuleContext): string[] {
   }
 
   for (const [i, s] of plan.steps.entries()) {
+    const t = s.target_spec;
+    if (t.kind !== "none") {
+      const name = `Step ${i + 1} target_spec (${t.kind})`;
+      if (t.low === null || t.high === null) v.push(`${name} needs both low and high.`);
+      else if (t.low > t.high) v.push(`${name} has low greater than high.`);
+      else {
+        const [min, max] =
+          t.kind === "hr_zone" ? [1, 7] : t.kind === "power_pct_ftp" ? [30, 200] : t.kind === "rpe" ? [1, 10] : plan.sport === "swim" ? [50, 240] : [150, 720];
+        if (t.low < min || t.high > max) v.push(`${name} must be between ${min} and ${max}.`);
+      }
+      if (t.kind === "power_pct_ftp" && plan.sport !== "bike" && plan.sport !== "brick") v.push(`${name}: power targets are for bike steps only.`);
+      if (t.kind === "pace" && plan.sport === "bike") v.push(`${name}: use power or HR for bike steps, not pace.`);
+    }
     if (s.minutes !== null && s.distance_m !== null) v.push(`Step ${i + 1} has both minutes and distance_m; use one.`);
     if (s.minutes === null && s.distance_m === null && plan.sport !== "rest") {
       v.push(`Step ${i + 1} ("${s.label}") has neither minutes nor distance_m.`);

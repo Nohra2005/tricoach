@@ -32,28 +32,58 @@ export const INTENSITIES = ["rest", "recovery", "easy", "moderate", "hard"] as c
 
 // Used as the structured-output schema sent to the model, so it avoids refinements and
 // optional keys: every key is present, "not applicable" is null.
+// Machine-readable target, used to send the workout to the watch.
+//   power_pct_ftp: low/high % of FTP (bike)
+//   hr_zone:       low/high zone numbers, 1 to 7
+//   pace:          low/high seconds per km (run) or per 100 m (swim); low is the faster pace
+//   rpe:           low/high 1 to 10 (the watch shows an open step)
+//   none:          no target (the watch shows an open step)
+export const TARGET_KINDS = ["power_pct_ftp", "hr_zone", "pace", "rpe", "none"] as const;
+export const TargetSpec = z.object({
+  kind: z.enum(TARGET_KINDS),
+  low: z.number().nullable(),
+  high: z.number().nullable(),
+});
+export type TargetSpec = z.infer<typeof TargetSpec>;
+
 export const PlanStep = z.object({
   label: z.string(),
   minutes: z.number().nullable(),
   distance_m: z.number().nullable(),
-  target: z.string(),
+  target: z.string(), // human-readable, shown in the app
+  target_spec: TargetSpec,
   reps: z.number().int().nullable(),
+  rest_seconds: z.number().nullable(), // rest after each repetition
   notes: z.string().nullable(),
 });
 export type PlanStep = z.infer<typeof PlanStep>;
 
-export const Plan = z.object({
+const planFields = {
   sport: z.enum(SPORTS),
   title: z.string(),
   total_minutes: z.number().int(),
   intensity: z.enum(INTENSITIES),
-  steps: z.array(PlanStep),
   why: z.string(),
   easier_option: z.string(),
   warnings: z.array(z.string()),
-});
+};
+
+export const Plan = z.object({ ...planFields, steps: z.array(PlanStep) });
 export type Plan = z.infer<typeof Plan>;
 export type Intensity = Plan["intensity"];
+
+// Plans saved before target_spec / rest_seconds existed still parse; those steps just
+// cannot be sent to the watch.
+export const StoredPlan = z.object({
+  ...planFields,
+  steps: z.array(
+    PlanStep.extend({
+      target_spec: TargetSpec.nullable().default(null),
+      rest_seconds: z.number().nullable().default(null),
+    }),
+  ),
+});
+export type StoredPlan = z.infer<typeof StoredPlan>;
 
 // ---------- Feedback ----------
 
@@ -244,9 +274,20 @@ export const MatchedActivity = ActivitySummary.extend({ match_rule: z.string() }
 
 export const DayEvent = z.object({
   at: z.string(),
-  type: z.enum(["checkin", "generate", "generate_failed", "feedback", "match"]),
+  type: z.enum(["checkin", "generate", "generate_failed", "feedback", "match", "send_to_watch", "send_to_watch_failed"]),
   detail: z.string().nullable(),
 });
+
+export const WatchSend = z.object({
+  event_id: z.string(),
+  sent_at: z.string(),
+  plan_title: z.string(), // to tell when the plan was rewritten after sending
+  type: z.string(), // intervals.icu activity type, e.g. Swim, Ride, VirtualRide, Run
+  text: z.string(), // the workout text sent
+  parsed_steps: z.number().int().nullable(), // steps intervals.icu understood
+  parsed_minutes: z.number().nullable(),
+});
+export type WatchSend = z.infer<typeof WatchSend>;
 
 export const DayRecord = z.object({
   date: DateStr,
@@ -254,8 +295,8 @@ export const DayRecord = z.object({
   metrics: Metrics.nullable(),
   checkin: CheckIn.extend({ submitted_at: z.string() }).nullable(),
   generation: Generation.nullable(),
-  plan: Plan.nullable(),
-  previous_plans: z.array(z.object({ plan: Plan, replaced_at: z.string() })),
+  plan: StoredPlan.nullable(),
+  previous_plans: z.array(z.object({ plan: StoredPlan, replaced_at: z.string() })),
   feedback: z
     .object({
       followed: z.enum(["as_planned", "modified", "skipped"]),
@@ -268,6 +309,8 @@ export const DayRecord = z.object({
     .nullable(),
   matched_activity: MatchedActivity.nullable(),
   match_checked_at: z.string().nullable(),
+  // The workout as last sent to the intervals.icu calendar (and from there to Garmin).
+  watch: WatchSend.nullable().default(null),
   events: z.array(DayEvent),
 });
 export type DayRecord = z.infer<typeof DayRecord>;

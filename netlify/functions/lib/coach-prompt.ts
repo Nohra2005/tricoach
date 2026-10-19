@@ -30,6 +30,14 @@ Constraints, follow exactly
 Writing the session
 - Each step has either minutes or distance_m (use distance_m for swim sets in a 25 m pool), not both; set the other to null. Use reps for repeated sets, and say the rest interval in notes.
 - target is specific and uses the athlete's own numbers from athlete_thresholds_and_zones: name the zone and give its range, for example "Z2, 139 to 151 bpm", "88 to 93% FTP, 185 to 195 W", or "2:15 to 2:20/100m". Use typical_last_6_weeks to keep paces realistic for this athlete right now. If a threshold or zone is missing, use RPE out of 10 or the typical paces instead of inventing numbers.
+- Every step also has target_spec, the same target in machine-readable form, so the session can be sent to the athlete's Garmin watch:
+  - "power_pct_ftp": low and high are % of FTP (bike only, and only if FTP is known).
+  - "hr_zone": low and high are heart rate zone numbers from 1 to 7, matching athlete_thresholds_and_zones.
+  - "pace": low and high are seconds per km for running, or seconds per 100 m for swimming; low is the faster pace (for example 2:15 to 2:20/100m is low 135, high 140).
+  - "rpe": low and high from 1 to 10, when no numeric target fits.
+  - "none": no target (warm-up drills, rest), with low and high null.
+  For the bike prefer power_pct_ftp, for running prefer hr_zone or pace, for swimming prefer pace. target and target_spec must describe the same target.
+- rest_seconds is the rest after each repetition of a repeated step (null if none). Also say the rest in notes.
 - total_minutes is the whole session including warm-up and cool-down.
 - "why" is 2 to 4 plain sentences that cite the actual numbers you used (for example HRV, sleep hours, form, last 7 days' load, check-in scores).
 - easier_option is one short alternative if the athlete feels worse once they start.

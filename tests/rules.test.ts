@@ -20,9 +20,9 @@ const plan: Plan = {
   total_minutes: 45,
   intensity: "easy",
   steps: [
-    { label: "Warm-up", minutes: 10, distance_m: null, target: "RPE 3", reps: null, notes: null },
-    { label: "Steady", minutes: 30, distance_m: null, target: "Z2", reps: null, notes: null },
-    { label: "Cool-down", minutes: 5, distance_m: null, target: "RPE 2", reps: null, notes: null },
+    { label: "Warm-up", minutes: 10, distance_m: null, target: "RPE 3", target_spec: { kind: "rpe", low: 3, high: 3 }, reps: null, rest_seconds: null, notes: null },
+    { label: "Steady", minutes: 30, distance_m: null, target: "Z2", target_spec: { kind: "hr_zone", low: 2, high: 2 }, reps: null, rest_seconds: null, notes: null },
+    { label: "Cool-down", minutes: 5, distance_m: null, target: "RPE 2", target_spec: { kind: "rpe", low: 2, high: 2 }, reps: null, rest_seconds: null, notes: null },
   ],
   why: "HRV is 52 ms, inside the range.",
   easier_option: "30 minutes easy.",

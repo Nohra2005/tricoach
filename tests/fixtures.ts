@@ -38,6 +38,7 @@ export function emptyDayForTest(date: string): DayRecord {
     feedback: null,
     matched_activity: null,
     match_checked_at: null,
+    watch: null,
     events: [],
   };
 }

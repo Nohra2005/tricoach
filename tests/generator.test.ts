@@ -11,7 +11,9 @@ const plan = {
   title: "Easy run",
   total_minutes: 40,
   intensity: "easy",
-  steps: [{ label: "Run", minutes: 40, distance_m: null, target: "Z2", reps: null, notes: null }],
+  steps: [
+    { label: "Run", minutes: 40, distance_m: null, target: "Z2", target_spec: { kind: "hr_zone", low: 2, high: 2 }, reps: null, rest_seconds: null, notes: null },
+  ],
   why: "HRV 52 ms is in range.",
   easier_option: "30 minutes.",
   warnings: [],
