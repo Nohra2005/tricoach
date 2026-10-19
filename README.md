@@ -1,6 +1,6 @@
 # TriCoach
 
-A personal triathlon coaching PWA for one athlete. Each morning it reads Garmin data through intervals.icu, asks a short check-in, and uses Claude to write that day's session. Every recommendation is logged with the data it was based on, and with whether it was followed, so the history can be exported as research data.
+A personal triathlon coaching PWA for one athlete. Each morning it reads Garmin data through intervals.icu, asks a short check-in, and uses a language model to write that day's session. It runs entirely on free tiers: Netlify Free, intervals.icu, and Groq's free API. Every recommendation is logged with the data it was based on, and with whether it was followed, so the history can be exported as research data.
 
 See [PLAN.md](PLAN.md) for the architecture and data model.
 
@@ -9,7 +9,7 @@ See [PLAN.md](PLAN.md) for the architecture and data model.
 - **Frontend**: Vite + React + TypeScript, installable as a PWA. The last day is kept on the device so it opens offline.
 - **Backend**: Netlify Functions under `/api/*`. All API keys stay on the server. Every function checks the `x-tricoach-passcode` header against `APP_PASSCODE`.
 - **Storage**: Netlify Blobs (store `tricoach`): `settings.json`, `days/YYYY-MM-DD.json`, `jobs/<id>.json`.
-- **Generation**: `/api/generate` starts the `generate-background` function (15 minute limit), which calls Claude with structured output validated by zod, checks the plan against hard rules (location, time, hard-day spacing, pain), retries once with the errors, and otherwise reports the error. The app polls `/api/job`.
+- **Generation**: `/api/generate` starts the `generate-background` function (15 minute limit), which calls the model (Groq `openai/gpt-oss-120b` by default) with strict JSON-schema output validated by zod, checks the plan against hard rules (location, time, hard-day spacing, pain), retries once with the errors, and otherwise reports the error. A free-tier rate limit (HTTP 429) is waited out using `retry-after`. The app polls `/api/job`.
 - **Coaching rules**: [netlify/functions/lib/coach-prompt.ts](netlify/functions/lib/coach-prompt.ts). Edit it and redeploy; each plan stores a hash of the prompt that produced it.
 - **Athlete profile and plan settings**: edited in the app (Settings tab), stored in Blobs, no redeploy needed.
 
@@ -21,9 +21,13 @@ Set these in Netlify (Site configuration > Environment variables). Names are in 
 |---|---|
 | `INTERVALS_API_KEY` | intervals.icu > Settings > Developer Settings > API key |
 | `INTERVALS_ATHLETE_ID` | Your athlete ID, shown on the same page (looks like `i123456`) |
-| `ANTHROPIC_API_KEY` | From console.anthropic.com |
-| `ANTHROPIC_MODEL` | Optional. Default `claude-sonnet-5-5`. `claude-haiku-5-5` is much cheaper |
 | `APP_PASSCODE` | Any passcode you choose; the app asks for it once per device |
+| `GROQ_API_KEY` | Free: console.groq.com > API Keys |
+| `GROQ_MODEL` | Optional. Default `openai/gpt-oss-120b` (must support strict structured outputs) |
+| `LLM_PROVIDER` | Optional. `groq` (default) or `anthropic` |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Only with `LLM_PROVIDER=anthropic` (paid). Default model `claude-sonnet-5-5` |
+
+Groq does not keep inference request data by default ([their data page](https://console.groq.com/docs/your-data)). Your exact free-tier limits are in your Groq account under Settings > Limits; the app needs about 1 to 3 requests a day.
 
 Garmin Connect must be linked to intervals.icu **directly**. Activities that reach intervals.icu through Strava come back from its API as empty stubs; the app counts them and tells you.
 
@@ -43,7 +47,7 @@ This serves the app and the functions together at http://localhost:8888, with a 
 
 ### Testing without real keys or API spend
 
-[scripts/mock-apis.mjs](scripts/mock-apis.mjs) stands in for intervals.icu and the Anthropic API. Run it, and point the app at it in `.env` (the full list is at the top of the script):
+[scripts/mock-apis.mjs](scripts/mock-apis.mjs) stands in for intervals.icu, Groq and the Anthropic API. Run it, and point the app at it in `.env` (the full list is at the top of the script):
 
 ```bash
 node scripts/mock-apis.mjs
@@ -51,10 +55,10 @@ node scripts/mock-apis.mjs
 
 ```
 INTERVALS_BASE_URL=http://localhost:8787/intervals/api/v1
-ANTHROPIC_BASE_URL=http://localhost:8787/anthropic
+GROQ_BASE_URL=http://localhost:8787/groq/openai/v1
 ```
 
-If `ANTHROPIC_BASE_URL` is already set in your shell, Netlify ignores the `.env` value; set it on the command line instead. `MOCK_PLAN=bad` makes the first answer break a rule, to exercise the retry.
+`MOCK_PLAN=bad` makes the first answer break a rule, to exercise the retry; `MOCK_429=1` makes the first Groq call rate-limited. Variables already set in your shell win over `.env`.
 
 If `npm install` fails with "The token '||' is not a valid statement separator", npm is set to run scripts with Windows PowerShell 5.1. Add `--script-shell=cmd.exe` to the install command.
 
@@ -72,14 +76,20 @@ npm run typecheck
 
 1. Push this repo to GitHub.
 2. In Netlify: Add new project > Import an existing project > GitHub > pick the repo. The build settings come from `netlify.toml` (`npm run build`, publish `dist`, functions in `netlify/functions`).
-3. Add the environment variables, then trigger a deploy. Every push to `main` redeploys.
+3. Add the environment variables, then trigger a deploy. Every push to `main` that changes the site redeploys.
 
-Netlify's Free plan covers functions, background functions and Blobs for one user. The only running cost is the Anthropic API, billed per use.
+Netlify's Free plan has 300 credits a month and a production deploy costs 15, so about 20 deploys a month; the app's own compute and bandwidth are a few credits. To stay inside it:
+- `netlify.toml` skips the build when a push only changes README, tests, CI or scripts.
+- Push several commits at once rather than one push per commit.
+
+Netlify's pricing page lists automatic credit top-ups only for paid plans, so the Free plan should not bill you; check that no card is on your Netlify account to be sure.
+
+[CI](.github/workflows/ci.yml) runs the type check, tests and build on GitHub Actions for every push; it does not use Netlify credits.
 
 ## First checks after deploying
 
 1. Open `https://<your-site>/api/health` in a browser. Without the passcode it lists which environment variables are set (true/false only).
-2. Open the app, enter the passcode, go to Settings > Check connections. It shows your intervals.icu athlete, how many of the last 7 days have HRV, sleep and resting HR, the recent activity types, and whether the Anthropic key and model work.
+2. Open the app, enter the passcode, go to Settings > Check connections. It shows your intervals.icu athlete, how many of the last 7 days have HRV, sleep and resting HR, the recent activity types, and whether the Groq key and model work.
 3. Fill in your goal race and FTP in Settings, then do a check-in on Today.
 
 ## API

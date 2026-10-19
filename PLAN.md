@@ -51,7 +51,9 @@ I could not confirm the current timeout for synchronous Netlify functions: the d
 2. `generate-background` (up to 15 min): gathers data, calls Claude, validates, runs the rule checks, retries once if needed, and writes the day record and `{status: "done" | "error", error?}`.
 3. The frontend polls `GET /api/job?id=` every 2 s and shows "Writing today's session...".
 
-Claude call details:
+**Update (2026-10-19):** to keep the app free, generation now uses Groq's free API (`openai/gpt-oss-120b`, strict JSON schema) by default, behind a small provider interface (`lib/generator.ts`, `lib/providers/`). Claude stays available with `LLM_PROVIDER=anthropic`. The validation, rule checks and retry below are unchanged.
+
+Claude call details (when `LLM_PROVIDER=anthropic`):
 
 - Model: `process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5-5"`.
 - Structured outputs (`client.messages.parse` with `zodOutputFormat(PlanSchema)`): the API constrains the reply to the schema and the SDK parses it with zod. Steps use exactly one of `minutes` or `distance_m`, which zod checks with a refine.

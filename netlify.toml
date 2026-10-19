@@ -1,6 +1,9 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  # Free plan: each production deploy costs credits. Skip the build when a push only
+  # changes files that do not affect the site (README, tests, CI, scripts).
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- src shared netlify public index.html vite.config.ts package.json package-lock.json netlify.toml"
 
 [build.environment]
   NODE_VERSION = "22"
