@@ -1,17 +1,14 @@
-// Writes today's session with the configured model provider: zod validation and rule
-// checks on every answer, one retry with the problems appended, then give up (never
-// invent a plan).
-//   LLM_PROVIDER=groq       (default, free tier)  GROQ_API_KEY, GROQ_MODEL
-//   LLM_PROVIDER=anthropic  (paid)                ANTHROPIC_API_KEY, ANTHROPIC_MODEL
+// Writes today's session with Groq (free tier): zod validation and rule checks on
+// every answer, one retry with the problems appended, then give up (never invent a
+// plan). The provider is a parameter so tests can pass a fake one.
 import { Plan } from "../../../shared/schemas";
 import { COACH_PROMPT } from "./coach-prompt";
 import { checkPlan, tidyText, type RuleContext } from "./rules";
-import { anthropic } from "./providers/anthropic";
 import { groq } from "./providers/groq";
 import { ProviderError, type Provider } from "./providers/types";
 
 export function provider(): Provider {
-  return process.env.LLM_PROVIDER?.trim().toLowerCase() === "anthropic" ? anthropic : groq;
+  return groq;
 }
 
 export interface AttemptLog {
@@ -29,15 +26,13 @@ export interface GenerateResult {
   outputTokens: number;
 }
 
-function parsePlan(parsed: unknown | null, raw: string | null): { plan: Plan | null; problem: string | null } {
-  let candidate = parsed;
-  if (candidate === null) {
-    if (!raw) return { plan: null, problem: "The answer was empty." };
-    try {
-      candidate = JSON.parse(raw);
-    } catch {
-      return { plan: null, problem: "The answer was not valid JSON." };
-    }
+function parsePlan(raw: string | null): { plan: Plan | null; problem: string | null } {
+  if (!raw) return { plan: null, problem: "The answer was empty." };
+  let candidate: unknown;
+  try {
+    candidate = JSON.parse(raw);
+  } catch {
+    return { plan: null, problem: "The answer was not valid JSON." };
   }
   const r = Plan.safeParse(candidate);
   if (r.success) return { plan: r.data, problem: null };
@@ -66,7 +61,7 @@ export async function generatePlan(input: unknown, ctx: RuleContext, p: Provider
       if (a.stopProblem) {
         problem = a.stopProblem;
       } else {
-        const { plan, problem: parseProblem } = parsePlan(a.parsed, a.raw);
+        const { plan, problem: parseProblem } = parsePlan(a.raw);
         if (plan) {
           const tidy = tidyText(plan);
           const violations = checkPlan(tidy, ctx);

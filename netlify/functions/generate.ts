@@ -1,6 +1,6 @@
 // POST /api/generate {date} : starts a background generation job and returns its id.
 // Generation runs in generate-background (15 minute limit), so the synchronous
-// function timeout can never cut a Claude answer off. Poll GET /api/job?id=.
+// function timeout can never cut a model answer off. Poll GET /api/job?id=.
 import type { Config } from "@netlify/functions";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";

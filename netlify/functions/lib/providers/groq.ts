@@ -113,7 +113,6 @@ export const groq: Provider = {
     const choice = data.choices[0];
     return {
       raw: choice.message.content,
-      parsed: null,
       stopProblem:
         choice.finish_reason === "length" ? `The answer was cut off at ${MAX_COMPLETION_TOKENS} tokens.` : null,
       answeredBy: data.model,

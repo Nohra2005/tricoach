@@ -2,7 +2,6 @@
 // validation, rule checks and retry, so providers stay small.
 export interface ProviderAnswer {
   raw: string | null; // the text the model returned
-  parsed: unknown | null; // already-parsed output, when the SDK does it
   stopProblem: string | null; // refusal, cut off, etc.
   answeredBy: string | null; // model that actually answered
   inputTokens: number;

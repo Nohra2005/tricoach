@@ -11,7 +11,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.135.0",
     "@netlify/blobs": "^11.1.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

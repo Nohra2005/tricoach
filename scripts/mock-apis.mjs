@@ -1,4 +1,4 @@
-// Local stand-ins for intervals.icu, Groq and the Anthropic Messages API, so the whole app
+// Local stand-ins for intervals.icu and Groq, so the whole app
 // can be exercised without real keys or API spend.
 //
 //   node scripts/mock-apis.mjs            (listens on http://localhost:8787)
@@ -6,7 +6,6 @@
 // Then in .env:
 //   INTERVALS_BASE_URL=http://localhost:8787/intervals/api/v1
 //   GROQ_BASE_URL=http://localhost:8787/groq/openai/v1
-//   ANTHROPIC_BASE_URL=http://localhost:8787/anthropic   (only with LLM_PROVIDER=anthropic)
 //   INTERVALS_API_KEY=x  INTERVALS_ATHLETE_ID=i1  GROQ_API_KEY=x  APP_PASSCODE=test
 //
 // MOCK_PLAN=bad makes the first model answer break a rule, to exercise the retry.
@@ -14,7 +13,7 @@
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.MOCK_PORT ?? 8787);
-let claudeCalls = 0;
+let modelCalls = 0;
 let rateLimited = false;
 
 function day(offset) {
@@ -72,19 +71,6 @@ const goodPlan = {
   warnings: ["Stop if you feel unusually tired in the warm-up."],
 };
 
-function message(plan) {
-  return {
-    id: `msg_mock_${claudeCalls}`,
-    type: "message",
-    role: "assistant",
-    model: "claude-sonnet-5-5",
-    content: [{ type: "text", text: JSON.stringify(plan) }],
-    stop_reason: "end_turn",
-    stop_sequence: null,
-    usage: { input_tokens: 3200, output_tokens: 700 },
-  };
-}
-
 function send(res, status, body) {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
@@ -112,29 +98,19 @@ createServer(async (req, res) => {
       res.writeHead(429, { "content-type": "application/json", "retry-after": "2" });
       return res.end(JSON.stringify({ error: { message: "Rate limit reached", type: "tokens" } }));
     }
-    claudeCalls++;
+    modelCalls++;
     const params = JSON.parse(body);
     const rf = params.response_format;
     console.log("  groq params:", JSON.stringify({ model: params.model, max_completion_tokens: params.max_completion_tokens, reasoning_effort: params.reasoning_effort, format: rf?.type, strict: rf?.json_schema?.strict }));
-    const bad = process.env.MOCK_PLAN === "bad" && claudeCalls % 2 === 1;
+    const bad = process.env.MOCK_PLAN === "bad" && modelCalls % 2 === 1;
     const plan = bad ? { ...goodPlan, total_minutes: 500 } : goodPlan;
     return send(res, 200, {
-      id: `chatcmpl-mock-${claudeCalls}`,
+      id: `chatcmpl-mock-${modelCalls}`,
       object: "chat.completion",
       model: params.model,
       choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(plan) } }],
       usage: { prompt_tokens: 3100, completion_tokens: 900, total_tokens: 4000 },
     });
-  }
-  if (url.pathname.startsWith("/anthropic/v1/models/")) {
-    return send(res, 200, { id: url.pathname.split("/").pop(), type: "model", display_name: "Mock model", created_at: "2026-01-01T00:00:00Z" });
-  }
-  if (url.pathname === "/anthropic/v1/messages") {
-    claudeCalls++;
-    const params = JSON.parse(body);
-    console.log("  claude params:", JSON.stringify({ model: params.model, max_tokens: params.max_tokens, fallbacks: params.fallbacks, output_config: { effort: params.output_config?.effort, format: params.output_config?.format?.type }, beta: req.headers["anthropic-beta"] }));
-    const bad = process.env.MOCK_PLAN === "bad" && claudeCalls % 2 === 1;
-    return send(res, 200, message(bad ? { ...goodPlan, total_minutes: 500 } : goodPlan));
   }
   send(res, 404, { error: `mock has no route for ${url.pathname}` });
 }).listen(PORT, () => console.log(`mock APIs on http://localhost:${PORT}`));

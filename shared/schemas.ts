@@ -23,12 +23,12 @@ export const CheckIn = z.object({
 });
 export type CheckIn = z.infer<typeof CheckIn>;
 
-// ---------- Plan (Claude output) ----------
+// ---------- Plan (model output) ----------
 
 export const SPORTS = ["swim", "bike", "run", "brick", "strength", "mobility", "rest"] as const;
 export const INTENSITIES = ["rest", "recovery", "easy", "moderate", "hard"] as const;
 
-// Used as the structured-output schema sent to Claude, so it avoids refinements and
+// Used as the structured-output schema sent to the model, so it avoids refinements and
 // optional keys: every key is present, "not applicable" is null.
 export const PlanStep = z.object({
   label: z.string(),

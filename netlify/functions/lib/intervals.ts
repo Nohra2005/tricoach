@@ -152,7 +152,7 @@ export function sportOf(type: string | null): ActivitySummary["sport"] {
 }
 
 // A session counts as "hard" if intervals.icu intensity (IF x 100) is 85 or more,
-// or the recorded RPE is 8 or more. Shown to Claude and in the UI as this rule.
+// or the recorded RPE is 8 or more. Shown to the model and in the UI as this rule.
 export const HARD_RULE = "intensity >= 85% (intervals.icu IF) or RPE >= 8";
 
 function fmtPace(secs: number): string {

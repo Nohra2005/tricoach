@@ -1,4 +1,4 @@
-// Background function (name ends in -background): gathers the data, calls Claude,
+// Background function (name ends in -background): gathers the data, calls the model,
 // validates, and stores the day record and job status. Started by /api/generate.
 import { z } from "zod";
 import { DateStr, type DayRecord } from "../../shared/schemas";

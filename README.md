@@ -24,8 +24,6 @@ Set these in Netlify (Site configuration > Environment variables). Names are in 
 | `APP_PASSCODE` | Any passcode you choose; the app asks for it once per device |
 | `GROQ_API_KEY` | Free: console.groq.com > API Keys |
 | `GROQ_MODEL` | Optional. Default `openai/gpt-oss-120b` (must support strict structured outputs) |
-| `LLM_PROVIDER` | Optional. `groq` (default) or `anthropic` |
-| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Only with `LLM_PROVIDER=anthropic` (paid). Default model `claude-sonnet-5-5` |
 
 Groq does not keep inference request data by default ([their data page](https://console.groq.com/docs/your-data)). Your exact free-tier limits are in your Groq account under Settings > Limits; the app needs about 1 to 3 requests a day.
 
@@ -47,7 +45,7 @@ This serves the app and the functions together at http://localhost:8888, with a 
 
 ### Testing without real keys or API spend
 
-[scripts/mock-apis.mjs](scripts/mock-apis.mjs) stands in for intervals.icu, Groq and the Anthropic API. Run it, and point the app at it in `.env` (the full list is at the top of the script):
+[scripts/mock-apis.mjs](scripts/mock-apis.mjs) stands in for intervals.icu and Groq. Run it, and point the app at it in `.env` (the full list is at the top of the script):
 
 ```bash
 node scripts/mock-apis.mjs

@@ -1,6 +1,6 @@
 # TriCoach: Phase 1 plan
 
-A single-user PWA. Each morning it reads intervals.icu, takes a check-in of under 30 seconds, asks Claude for today's session, and logs the recommendation next to what was actually done.
+A single-user PWA. Each morning it reads intervals.icu, takes a check-in of under 30 seconds, asks a language model (Groq free tier) for today's session, and logs the recommendation next to what was actually done.
 
 ## 1. Architecture
 
@@ -12,11 +12,12 @@ Netlify Functions (TS, v2 API, routed under /api/*)
    |-- lib/auth.ts         passcode check (constant-time compare against APP_PASSCODE)
    |-- lib/intervals.ts    typed intervals.icu client (zod-validated)
    |-- lib/metrics.ts      averages, SD, flags, per-sport weekly totals (pure functions, unit tested)
-   |-- lib/claude.ts       Anthropic SDK call, zod-validated output, one retry
-   |-- lib/rules.ts        hard checks on Claude's output (location, time, hard-day spacing)
+   |-- lib/generator.ts    model call, zod-validated output, one retry
+   |-- lib/providers/      groq.ts (free tier, strict JSON schema)
+   |-- lib/rules.ts        hard checks on the model's output (location, time, hard-day spacing)
    |-- lib/store.ts        Netlify Blobs read/write
    v
-intervals.icu API          Anthropic Messages API          Netlify Blobs
+intervals.icu API          Groq Chat Completions API          Netlify Blobs
 ```
 
 No key ever reaches the browser. The frontend only knows the passcode, kept in `localStorage` (wrapped in try/catch).
@@ -48,19 +49,16 @@ Sport mapping: `Swim`/`OpenWaterSwim` -> swim; `Ride`/`VirtualRide`/`GravelRide`
 I could not confirm the current timeout for synchronous Netlify functions: the docs and support pages say 10 s in some places and 30 s in others. Background functions are documented at 15 minutes and are available on the Free plan. So generation does not depend on the sync limit:
 
 1. `POST /api/generate` (sync): checks the passcode, writes a job `{status: "queued"}` to Blobs, calls the background function internally, and returns `{jobId}` at once.
-2. `generate-background` (up to 15 min): gathers data, calls Claude, validates, runs the rule checks, retries once if needed, and writes the day record and `{status: "done" | "error", error?}`.
+2. `generate-background` (up to 15 min): gathers data, calls the model, validates, runs the rule checks, retries once if needed, and writes the day record and `{status: "done" | "error", error?}`.
 3. The frontend polls `GET /api/job?id=` every 2 s and shows "Writing today's session...".
 
-**Update (2026-10-19):** to keep the app free, generation now uses Groq's free API (`openai/gpt-oss-120b`, strict JSON schema) by default, behind a small provider interface (`lib/generator.ts`, `lib/providers/`). Claude stays available with `LLM_PROVIDER=anthropic`. The validation, rule checks and retry below are unchanged.
+**Update (2026-10-19):** to keep the app free (no paid API, no card), generation uses Groq's free API instead of Claude. Model call details:
 
-Claude call details (when `LLM_PROVIDER=anthropic`):
-
-- Model: `process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5-5"`.
-- Structured outputs (`client.messages.parse` with `zodOutputFormat(PlanSchema)`): the API constrains the reply to the schema and the SDK parses it with zod. Steps use exactly one of `minutes` or `distance_m`, which zod checks with a refine.
-- `max_tokens: 4000` (thinking counts against it; the plan itself is about 600 tokens) and `effort: "medium"` to keep latency and cost down.
+- Model: `process.env.GROQ_MODEL ?? "openai/gpt-oss-120b"` through `https://api.groq.com/openai/v1/chat/completions`.
+- Structured output: `response_format: json_schema` with `strict: true`; the schema is generated from the zod `Plan` schema, and the reply is parsed with zod again.
+- `max_completion_tokens: 3000`, `reasoning_effort: "medium"`, compact JSON input, and on HTTP 429 a wait for `retry-after` (at most 90 s, twice), to stay inside free-tier per-minute limits.
 - **Retry once.** If zod parsing fails, or `rules.ts` finds a violation (pool session when the pool is unavailable, `total_minutes` over the time available, a hard session the day after a hard one, more than 2 hard sessions in the trailing 7 days, a step-minutes sum that does not match `total_minutes`), I send the error text back and ask for a corrected plan. If the second attempt also fails, the user sees the error, and the failed attempts are logged. No plan is invented.
 - **Medical override, in code as well as in the prompt.** If the check-in says "pain or illness: something", the prompt requires a rest or see-a-doctor answer for chest pain, fever, illness or injury pain, and `rules.ts` rejects anything above "recovery" intensity in that case.
-- **Refusal fallback.** For Sonnet 5.5 the SDK guide recommends enabling Anthropic's server-side `fallbacks: "default"` (a beta) so a rare false-positive safety refusal is retried on another model rather than failing. I plan to turn it on and log which model actually answered. Say if you would rather leave it off.
 
 ## 4. Data model (Netlify Blobs, one store `tricoach`)
 
@@ -83,7 +81,7 @@ A day record is the research unit:
   "generation": { "model": "...", "answered_by": "...", "prompt_version": "<hash of coach-prompt.ts>",
                   "attempts": [ { "ok": false, "error": "..." } ], "latency_ms": 0,
                   "input_tokens": 0, "output_tokens": 0, "input": { /* exact payload sent */ } },
-  "plan":     { /* the validated Claude JSON */ },
+  "plan":     { /* the validated model JSON */ },
   "feedback": { "followed": "as_planned|modified|skipped", "reason": "...", "rpe": 6, "feel": 4,
                 "notes": "...", "submitted_at": "..." },
   "matched_activity": { "id": "...", "type": "Swim", "moving_time": 2700, "load": 38, "match_rule": "same date + sport, longest" },
@@ -91,7 +89,7 @@ A day record is the research unit:
 }
 ```
 
-Storing the exact input and the prompt version means every recommendation can be traced to what Claude saw, and that matters for the Media Lab write-up.
+Storing the exact input and the prompt version means every recommendation can be traced to what the model saw, and that matters for the Media Lab write-up.
 
 ## 5. Metric rules (shown in the UI, not hidden)
 
@@ -128,13 +126,13 @@ tricoach/
     match.ts                   POST /api/match             re-match days still missing an activity
     history.ts                 GET  /api/history  (+ ?format=csv|json for export)
     settings.ts                GET/PUT /api/settings
-    lib/ auth.ts intervals.ts metrics.ts claude.ts rules.ts store.ts http.ts
+    lib/ auth.ts intervals.ts metrics.ts generator.ts rules.ts store.ts http.ts providers/groq.ts
     coach-prompt.ts            system prompt, editable, versioned by hash
   tests/
     metrics.test.ts  rules.test.ts  intervals.test.ts (fixtures, including null-heavy days)
 ```
 
-Tests run with Vitest. Metrics and rules are pure functions, so they get real tests; the Claude call is tested with a recorded fixture, not live.
+Tests run with Vitest. Metrics and rules are pure functions, so they get real tests; the model call is tested with a fake provider and a local mock, not live.
 
 ## 7. Screens
 
@@ -151,7 +149,7 @@ Tests run with Vitest. Metrics and rules are pure functions, so they get real te
 2. intervals client + fixtures + tests; a test call through `/api/health`.
 3. Metrics and flags + Today screen.
 4. Check-in + Blobs storage.
-5. coach-prompt.ts, Claude client, rules, background generation, Session screen.
+5. coach-prompt.ts, model client, rules, background generation, Session screen.
 6. Feedback + activity matching.
 7. History + CSV/JSON export.
 8. Settings.

@@ -1,4 +1,4 @@
-// Hard checks on Claude's plan. A violation triggers one retry with the reasons; if the
+// Hard checks on the model's plan. A violation triggers one retry with the reasons; if the
 // second plan also fails, the user sees the error instead of a plan.
 import type { CheckIn, Location, Plan } from "../../../shared/schemas";
 import { addDays } from "./dates";

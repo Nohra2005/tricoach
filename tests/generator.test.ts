@@ -18,7 +18,7 @@ const plan = {
 };
 
 function answer(raw: string | null, extra: Partial<ProviderAnswer> = {}): ProviderAnswer {
-  return { raw, parsed: null, stopProblem: null, answeredBy: "fake-model", inputTokens: 10, outputTokens: 5, ...extra };
+  return { raw, stopProblem: null, answeredBy: "fake-model", inputTokens: 10, outputTokens: 5, ...extra };
 }
 
 function fake(answers: (ProviderAnswer | Error)[]) {

@@ -12,11 +12,8 @@ const ENV = [
   "INTERVALS_API_KEY",
   "INTERVALS_ATHLETE_ID",
   "APP_PASSCODE",
-  "LLM_PROVIDER",
   "GROQ_API_KEY",
   "GROQ_MODEL",
-  "ANTHROPIC_API_KEY",
-  "ANTHROPIC_MODEL",
 ];
 
 function fieldCoverage(rows: Record<string, unknown>[], fields: string[]) {
