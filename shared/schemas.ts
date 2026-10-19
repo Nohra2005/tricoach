@@ -14,8 +14,10 @@ const Scale5 = z.number().int().min(1).max(5);
 export const CheckIn = z.object({
   energy: Scale5,
   soreness: Scale5,
-  motivation: Scale5,
-  stress: Scale5,
+  // No longer asked (Garmin covers stress and readiness); kept optional so older
+  // check-ins still parse and export.
+  motivation: Scale5.nullable().optional(),
+  stress: Scale5.nullable().optional(),
   minutes: z.number().int().min(0).max(600),
   locations: z.array(Location).min(1),
   // null means "none"; a string is what the athlete wrote
@@ -163,6 +165,8 @@ export const Metrics = z.object({
     atl: z.number().nullable(),
     tsb: z.number().nullable(),
     weight: z.number().nullable(),
+    // Garmin Training Readiness (or another device's score), if intervals.icu has it.
+    readiness: z.number().nullable().optional(),
   }),
   baselines: z.object({
     hrv: Baseline,

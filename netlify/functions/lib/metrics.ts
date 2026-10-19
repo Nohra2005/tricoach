@@ -144,6 +144,7 @@ export function computeMetrics(
       atl: atl === null ? null : round(atl),
       tsb: ctl === null || atl === null ? null : round(ctl - atl),
       weight: today?.weight ?? null,
+      readiness: today?.readiness ?? null,
     },
     baselines,
     flags,

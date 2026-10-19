@@ -16,7 +16,8 @@ Using the data
 - Do not over-react to a single number. One flag on its own, with the other signals normal, is a reason for a small adjustment, not a rest day.
 - A value of null means there is no data for it. Do not treat null as zero and do not invent a value.
 - If today's HRV, resting HR or sleep is null, latest_values_if_today_missing gives the most recent value and its date. You may use it as weaker evidence, and say in "why" that it is from that date, not today.
-- Treat the subjective check-in (energy, soreness, motivation, stress; 1 is low, 5 is high) as being as important as the device data.
+- readiness.today.readiness is the device's readiness score (for example Garmin Training Readiness, 0 to 100) when available; null means the device did not send one.
+- The check-in asks only what the watch cannot measure: energy and muscle soreness (1 is low, 5 is high). Treat them as being as important as the device data: low energy or high soreness means reduce intensity even when the device numbers look good.
 
 Constraints, follow exactly
 - total_minutes must not exceed the minutes available in the check-in. If 0 minutes are available, prescribe rest.

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { CheckIn, LOCATIONS, type Location } from "../../shared/schemas";
 import { ErrorBox, TapScale } from "../components/ui";
 
+// The check-in asks only what the watch cannot measure: energy, soreness, time,
+// place, and pain or illness. Garmin covers stress and readiness.
 const MINUTE_CHOICES = [0, 30, 45, 60, 75, 90, 120];
 const LOCATION_LABEL: Record<Location, string> = {
   pool: "Pool",
@@ -16,8 +18,6 @@ export function CheckInForm(props: { initial: CheckIn | null; busy: boolean; onS
   const init = props.initial;
   const [energy, setEnergy] = useState<number | null>(init?.energy ?? null);
   const [soreness, setSoreness] = useState<number | null>(init?.soreness ?? null);
-  const [motivation, setMotivation] = useState<number | null>(init?.motivation ?? null);
-  const [stress, setStress] = useState<number | null>(init?.stress ?? null);
   const [minutes, setMinutes] = useState<number | null>(init?.minutes ?? null);
   const [custom, setCustom] = useState(init && !MINUTE_CHOICES.includes(init.minutes) ? String(init.minutes) : "");
   const [locations, setLocations] = useState<Location[]>(init?.locations ?? []);
@@ -35,88 +35,104 @@ export function CheckInForm(props: { initial: CheckIn | null; busy: boolean; onS
     const candidate = {
       energy,
       soreness,
-      motivation,
-      stress,
       minutes: custom ? Number(custom) : minutes,
       locations,
       pain: hasPain ? pain.trim() || null : null,
     };
-    if (hasPain && !candidate.pain) return setError("Describe the pain or illness, or switch it back to none.");
+    if (hasPain && !candidate.pain) return setError("Describe the pain or illness, or switch it back to None.");
     const parsed = CheckIn.safeParse(candidate);
-    if (!parsed.success) return setError("Answer every question: the four scales, time, and at least one place.");
+    if (!parsed.success) return setError("Answer each question: energy, soreness, time, and at least one place.");
     setError(null);
     props.onSubmit(parsed.data);
   }
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0 }}>Morning check-in</h2>
-      <TapScale label="Energy" value={energy} onChange={setEnergy} low="very low" high="very high" />
-      <TapScale label="Muscle soreness" value={soreness} onChange={setSoreness} low="none" high="very sore" />
-      <TapScale label="Motivation" value={motivation} onChange={setMotivation} low="very low" high="very high" />
-      <TapScale label="Stress" value={stress} onChange={setStress} low="calm" high="very stressed" />
+    <section className="card" aria-label="Morning check-in">
+      <div className="eyebrow muted">Morning check-in</div>
+      <h3 style={{ fontSize: "1.3rem", fontWeight: 850, margin: "4px 0 0" }}>How are you today?</h3>
+      <p className="small muted">Your watch covers HRV, sleep, stress and readiness. These are the things it can't measure.</p>
 
-      <strong>Time available today</strong>
-      <div className="chips" style={{ marginTop: 6 }}>
-        {MINUTE_CHOICES.map((m) => (
-          <button
-            key={m}
-            type="button"
-            className={`chip ${!custom && minutes === m ? "selected" : ""}`}
-            onClick={() => {
-              setMinutes(m);
-              setCustom("");
-            }}
-          >
-            {m === 0 ? "None" : `${m} min`}
-          </button>
-        ))}
-        <input
-          type="number"
-          inputMode="numeric"
-          placeholder="Other"
-          value={custom}
-          onChange={(e) => setCustom(e.target.value)}
-          style={{ width: 96 }}
-          aria-label="Other number of minutes"
-        />
+      <TapScale label="Energy" value={energy} onChange={setEnergy} low="drained" high="great" />
+      <TapScale label="Muscle soreness" value={soreness} onChange={setSoreness} low="none" high="very sore" />
+
+      <div className="question">
+        <div className="question-head">
+          <strong>Time to train today</strong>
+        </div>
+        <div className="chips">
+          {MINUTE_CHOICES.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={`chip ${!custom && minutes === m ? "selected" : ""}`}
+              aria-pressed={!custom && minutes === m}
+              onClick={() => {
+                setMinutes(m);
+                setCustom("");
+              }}
+            >
+              {m === 0 ? "None" : `${m}′`}
+            </button>
+          ))}
+          <input
+            type="number"
+            inputMode="numeric"
+            placeholder="Other"
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            style={{ width: 96 }}
+            aria-label="Other number of minutes"
+          />
+        </div>
       </div>
 
-      <div style={{ marginTop: 14 }}>
-        <strong>Where can you train today?</strong>
-        <div className="chips" style={{ marginTop: 6 }}>
+      <div className="question">
+        <div className="question-head">
+          <strong>Where can you train?</strong>
+          <span className="small muted">pick all that apply</span>
+        </div>
+        <div className="chips">
           {LOCATIONS.map((l) => (
-            <button key={l} type="button" className={`chip ${locations.includes(l) ? "selected" : ""}`} onClick={() => toggle(l)}>
+            <button
+              key={l}
+              type="button"
+              className={`chip ${locations.includes(l) ? "selected" : ""}`}
+              aria-pressed={locations.includes(l)}
+              onClick={() => toggle(l)}
+            >
               {LOCATION_LABEL[l]}
             </button>
           ))}
         </div>
       </div>
 
-      <div style={{ marginTop: 14 }}>
-        <strong>Pain or illness</strong>
-        <div className="chips" style={{ marginTop: 6 }}>
-          <button type="button" className={`chip ${!hasPain ? "selected" : ""}`} onClick={() => setHasPain(false)}>
+      <div className="question">
+        <div className="question-head">
+          <strong>Pain or illness</strong>
+        </div>
+        <div className="chips">
+          <button type="button" className={`chip ${!hasPain ? "selected" : ""}`} aria-pressed={!hasPain} onClick={() => setHasPain(false)}>
             None
           </button>
-          <button type="button" className={`chip ${hasPain ? "selected" : ""}`} onClick={() => setHasPain(true)}>
+          <button type="button" className={`chip ${hasPain ? "selected" : ""}`} aria-pressed={hasPain} onClick={() => setHasPain(true)}>
             Something
           </button>
         </div>
         {hasPain && (
           <textarea
-            style={{ marginTop: 8 }}
+            style={{ marginTop: 10 }}
             placeholder="What and where? For example: sore throat, left knee pain when running"
             value={pain}
             onChange={(e) => setPain(e.target.value)}
+            aria-label="Describe the pain or illness"
           />
         )}
       </div>
 
       <ErrorBox message={error} />
-      <button className="primary" style={{ marginTop: 14 }} disabled={props.busy} onClick={submit}>
-        {props.busy ? "Saving..." : "Save and write today's session"}
+      <button className="primary" disabled={props.busy} onClick={submit}>
+        {props.busy ? "Saving..." : "Write today's session"}
       </button>
-    </div>
+    </section>
   );
 }

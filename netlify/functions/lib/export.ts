@@ -23,6 +23,7 @@ const COLUMNS: [string, (d: DayRecord) => Cell][] = [
   ["flag_count", (d) => d.metrics?.flags.length],
   ["energy", (d) => d.checkin?.energy],
   ["soreness", (d) => d.checkin?.soreness],
+  ["device_readiness", (d) => d.metrics?.today.readiness],
   ["motivation", (d) => d.checkin?.motivation],
   ["stress", (d) => d.checkin?.stress],
   ["minutes_available", (d) => d.checkin?.minutes],
