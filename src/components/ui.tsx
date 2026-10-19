@@ -45,9 +45,8 @@ export function MetricCard(props: {
           <div className="range-dot" style={{ left: `${band.dot}%` }} />
         </div>
       )}
-      <div className="small muted">
-        7-day avg {fmt(b.mean7, unit, dp)} · 28-day avg {fmt(b.mean28, unit, dp)}
-      </div>
+      <div className="small muted">7-day avg {fmt(b.mean7, unit, dp)}</div>
+      <div className="small muted">28-day avg {fmt(b.mean28, unit, dp)}</div>
       {hasRange ? (
         <div className="small muted">
           Normal range {fmt(b.mean28! - b.sd28!, "", dp)} to {fmt(b.mean28! + b.sd28!, unit, dp)}
