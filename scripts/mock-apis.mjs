@@ -1,18 +1,21 @@
-// Local stand-ins for intervals.icu and the Anthropic Messages API, so the whole app
+// Local stand-ins for intervals.icu, Groq and the Anthropic Messages API, so the whole app
 // can be exercised without real keys or API spend.
 //
 //   node scripts/mock-apis.mjs            (listens on http://localhost:8787)
 //
 // Then in .env:
 //   INTERVALS_BASE_URL=http://localhost:8787/intervals/api/v1
-//   ANTHROPIC_BASE_URL=http://localhost:8787/anthropic
-//   INTERVALS_API_KEY=x  INTERVALS_ATHLETE_ID=i1  ANTHROPIC_API_KEY=x  APP_PASSCODE=test
+//   GROQ_BASE_URL=http://localhost:8787/groq/openai/v1
+//   ANTHROPIC_BASE_URL=http://localhost:8787/anthropic   (only with LLM_PROVIDER=anthropic)
+//   INTERVALS_API_KEY=x  INTERVALS_ATHLETE_ID=i1  GROQ_API_KEY=x  APP_PASSCODE=test
 //
-// MOCK_PLAN=bad makes the first Claude answer break a rule, to exercise the retry.
+// MOCK_PLAN=bad makes the first model answer break a rule, to exercise the retry.
+// MOCK_429=1 makes the first Groq call return 429 with retry-after: 2.
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.MOCK_PORT ?? 8787);
 let claudeCalls = 0;
+let rateLimited = false;
 
 function day(offset) {
   const d = new Date();
@@ -98,6 +101,30 @@ createServer(async (req, res) => {
     if (url.pathname.endsWith("/wellness")) return send(res, 200, wellness());
     if (url.pathname.endsWith("/activities")) return send(res, 200, activities());
     if (/\/athlete\/[^/]+$/.test(url.pathname)) return send(res, 200, { id: "i1", name: "Mock Athlete" });
+  }
+  if (url.pathname.startsWith("/groq/openai/v1/models/")) {
+    return send(res, 200, { id: url.pathname.split("/models/")[1], object: "model", owned_by: "mock" });
+  }
+  if (url.pathname === "/groq/openai/v1/chat/completions") {
+    if (process.env.MOCK_429 && !rateLimited) {
+      rateLimited = true;
+      console.log("  groq: returning 429");
+      res.writeHead(429, { "content-type": "application/json", "retry-after": "2" });
+      return res.end(JSON.stringify({ error: { message: "Rate limit reached", type: "tokens" } }));
+    }
+    claudeCalls++;
+    const params = JSON.parse(body);
+    const rf = params.response_format;
+    console.log("  groq params:", JSON.stringify({ model: params.model, max_completion_tokens: params.max_completion_tokens, reasoning_effort: params.reasoning_effort, format: rf?.type, strict: rf?.json_schema?.strict }));
+    const bad = process.env.MOCK_PLAN === "bad" && claudeCalls % 2 === 1;
+    const plan = bad ? { ...goodPlan, total_minutes: 500 } : goodPlan;
+    return send(res, 200, {
+      id: `chatcmpl-mock-${claudeCalls}`,
+      object: "chat.completion",
+      model: params.model,
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(plan) } }],
+      usage: { prompt_tokens: 3100, completion_tokens: 900, total_tokens: 4000 },
+    });
   }
   if (url.pathname.startsWith("/anthropic/v1/models/")) {
     return send(res, 200, { id: url.pathname.split("/").pop(), type: "model", display_name: "Mock model", created_at: "2026-01-01T00:00:00Z" });
