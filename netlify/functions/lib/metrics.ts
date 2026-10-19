@@ -99,6 +99,17 @@ export function weeklyTotals(activities: ActivitySummary[], date: string): Metri
   return totals;
 }
 
+// Most recent value on or before `date`, so the app can say "no data today, last was X on Y".
+export function latestValue(wellness: Wellness[], pick: Pick, date: string): { value: number; date: string } | null {
+  for (let i = wellness.length - 1; i >= 0; i--) {
+    const w = wellness[i];
+    if (w.id > date) continue;
+    const v = pick(w);
+    if (v !== null) return { value: v, date: w.id };
+  }
+  return null;
+}
+
 export function computeMetrics(
   date: string,
   wellness: Wellness[],
@@ -140,5 +151,10 @@ export function computeMetrics(
     last7: weeklyTotals(activities, date),
     activities14: [...activities].sort((a, b) => b.start_local.localeCompare(a.start_local)),
     hidden_activities: hidden,
+    latest: {
+      hrv: latestValue(wellness, PICKS.hrv.pick, date),
+      resting_hr: latestValue(wellness, PICKS.resting_hr.pick, date),
+      sleep_hours: latestValue(wellness, PICKS.sleep_hours.pick, date),
+    },
   };
 }

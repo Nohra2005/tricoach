@@ -42,11 +42,35 @@ export default handle(async (req) => {
   const [athlete, wellness, activities, ai] = await Promise.all([
     check(async () => {
       const a = await getAthlete();
-      return { id: a.id, name: a.name };
+      return {
+        id: a.id,
+        name: a.name,
+        // Raw values, so threshold units can be checked (threshold_pace is m/s).
+        sport_settings: a.sportSettings.map((x) => ({
+          types: x.types,
+          ftp: x.ftp,
+          lthr: x.lthr,
+          max_hr: x.max_hr,
+          threshold_pace: x.threshold_pace,
+          pace_units: x.pace_units,
+          hr_zones: x.hr_zones.length,
+          power_zones: x.power_zones.length,
+          pace_zones: x.pace_zones.length,
+        })),
+      };
     }),
     check(async () => {
       const rows = await getWellness(addDays(today, -6), today);
+      const keys = ["hrv", "restingHR", "sleepSecs", "sleepScore", "ctl", "atl"] as const;
+      const todayRow = rows.find((r) => r.id === today) ?? null;
+      const lastDateWith = (k: (typeof keys)[number]) =>
+        [...rows].reverse().find((r) => r[k] !== null && r.id <= today)?.id ?? "none in last 7 days";
       return {
+        // Is this morning's data in intervals.icu yet?
+        today: todayRow
+          ? Object.fromEntries(keys.map((k) => [k, todayRow[k] ?? "no data"]))
+          : "intervals.icu has no wellness record for today yet",
+        last_date_with_data: Object.fromEntries(keys.map((k) => [k, lastDateWith(k)])),
         days_returned: rows.length,
         fields_with_data: fieldCoverage(rows, ["hrv", "restingHR", "sleepSecs", "sleepScore", "ctl", "atl", "weight", "readiness"]),
       };

@@ -76,16 +76,16 @@ export function SettingsScreen({ onSignOut }: { onSignOut: () => void }) {
             inputMode="numeric"
             value={s.plan.ftp_watts ?? ""}
             onChange={(e) => plan("ftp_watts", e.target.value ? Number(e.target.value) : null)}
-            placeholder="Leave empty if unknown"
+            placeholder="Leave empty to use intervals.icu"
           />
         </label>
         <label className="field">
           <span>Run threshold pace (per km)</span>
-          <input value={s.plan.threshold_run_pace} onChange={(e) => plan("threshold_run_pace", e.target.value)} placeholder="For example: 5:10/km" />
+          <input value={s.plan.threshold_run_pace} onChange={(e) => plan("threshold_run_pace", e.target.value)} placeholder="Empty = intervals.icu. For example: 5:10/km" />
         </label>
         <label className="field">
           <span>Swim CSS (per 100 m)</span>
-          <input value={s.plan.swim_css} onChange={(e) => plan("swim_css", e.target.value)} placeholder="For example: 2:05/100m" />
+          <input value={s.plan.swim_css} onChange={(e) => plan("swim_css", e.target.value)} placeholder="Empty = intervals.icu. For example: 2:05/100m" />
         </label>
         <label className="field">
           <span>Current focus</span>

@@ -23,8 +23,10 @@ export function MetricCard(props: {
   flag: Flag | undefined;
   unit: string;
   dp?: number;
+  // Shown when today has no value: the most recent one, e.g. "41 ms on Sat 18 Oct".
+  lastText?: string | null;
 }) {
-  const { label, value, display, baseline: b, flag, unit, dp = 0 } = props;
+  const { label, value, display, baseline: b, flag, unit, dp = 0, lastText } = props;
   const hasRange = b.mean28 !== null && b.sd28 !== null && b.n28 >= 10;
   let band: { left: number; width: number; dot: number } | null = null;
   if (hasRange && value !== null) {
@@ -38,7 +40,16 @@ export function MetricCard(props: {
   return (
     <div className={`card${flag ? " flag" : ""}`}>
       <div className="metric-label">{label}</div>
-      <div className="metric-value">{display}</div>
+      {value === null ? (
+        <div className="metric-value muted" style={{ fontSize: "1.1rem" }}>
+          no data today
+        </div>
+      ) : (
+        <div className="metric-value">{display}</div>
+      )}
+      {value === null && (
+        <div className="small muted">{lastText ? `Last: ${lastText}` : "Nothing in the last 6 weeks"}</div>
+      )}
       {band && (
         <div className="range" aria-hidden>
           <div className="range-band" style={{ left: `${band.left}%`, width: `${band.width}%` }} />

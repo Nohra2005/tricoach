@@ -15,12 +15,106 @@ function minutesText(m: number) {
   return m >= 60 ? `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, "0")}m` : `${Math.round(m)} min`;
 }
 
+function dayLabel(date: string) {
+  const [y, mo, d] = date.split("-").map(Number);
+  return new Date(y, mo - 1, d).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
+
+function YourNumbers({ m }: { m: Metrics }) {
+  const t = m.thresholds;
+  const ty = m.typical;
+  if (!t && !ty) return null;
+  const sports = [
+    ["swim", "Swim"],
+    ["bike", "Bike"],
+    ["run", "Run"],
+  ] as const;
+  return (
+    <>
+      <h2>Your numbers</h2>
+      <p className="small muted">What the coach uses for targets. Typed values in Settings override intervals.icu.</p>
+      {sports.map(([k, label]) => {
+        const s = t?.[k];
+        const typ = ty?.[k];
+        return (
+          <details className="card" key={k}>
+            <summary>
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <strong>{label}</strong>
+                <span className="small muted">
+                  {s?.threshold ?? "no threshold set"}
+                  {s?.threshold_source ? ` · ${s.threshold_source}` : ""}
+                </span>
+              </div>
+              {typ && typ.sessions > 0 && (
+                <div className="small muted">
+                  Last {ty!.days} days: {typ.sessions} sessions
+                  {typ.median_pace ? `, typical ${typ.median_pace}` : ""}
+                  {typ.median_avg_watts !== null ? `, typical ${typ.median_avg_watts} W` : ""}
+                  {typ.median_avg_hr !== null ? `, HR ${typ.median_avg_hr}` : ""}
+                </div>
+              )}
+            </summary>
+            {s && (s.lthr !== null || s.max_hr !== null) && (
+              <p className="small">
+                Threshold HR {fmt(s.lthr, "bpm")} · Max HR {fmt(s.max_hr, "bpm")}
+                {s.indoor_ftp ? ` · Indoor FTP ${s.indoor_ftp} W` : ""}
+              </p>
+            )}
+            {typ?.middle_half && <p className="small">Middle half of your sessions: {typ.middle_half}</p>}
+            {s && s.work_zones.length > 0 && (
+              <>
+                <h3>{k === "bike" ? "Power zones" : "Pace zones"}</h3>
+                <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
+                  {s.work_zones.map((z) => (
+                    <li key={z}>{z}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {s && s.hr_zones.length > 0 && (
+              <>
+                <h3 style={{ marginTop: 8 }}>Heart rate zones</h3>
+                <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
+                  {s.hr_zones.map((z) => (
+                    <li key={z}>{z}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {s && s.work_zones.length === 0 && s.hr_zones.length === 0 && (
+              <p className="small muted">No zones in intervals.icu for this sport. Set them in intervals.icu Settings, or add a threshold in TriCoach Settings.</p>
+            )}
+          </details>
+        );
+      })}
+      {t?.notes.map((n) => (
+        <p key={n} className="small muted">
+          {n}
+        </p>
+      ))}
+    </>
+  );
+}
+
 function Readiness({ m }: { m: Metrics }) {
   const flag = (k: string) => m.flags.find((f) => f.metric === k);
+  const last = (k: "hrv" | "resting_hr" | "sleep_hours", show: (v: number) => string) => {
+    const l = m.latest?.[k];
+    return l && l.date !== m.date ? `${show(l.value)} on ${dayLabel(l.date)}` : null;
+  };
   return (
     <>
       <div className="grid">
-        <MetricCard label="HRV" value={m.today.hrv} display={fmt(m.today.hrv, "ms")} baseline={m.baselines.hrv} flag={flag("hrv")} unit="ms" />
+        <MetricCard
+          label="HRV"
+          value={m.today.hrv}
+          display={fmt(m.today.hrv, "ms")}
+          baseline={m.baselines.hrv}
+          flag={flag("hrv")}
+          unit="ms"
+          lastText={last("hrv", (v) => fmt(v, "ms"))}
+        />
         <MetricCard
           label="Resting HR"
           value={m.today.resting_hr}
@@ -28,6 +122,7 @@ function Readiness({ m }: { m: Metrics }) {
           baseline={m.baselines.resting_hr}
           flag={flag("resting_hr")}
           unit="bpm"
+          lastText={last("resting_hr", (v) => fmt(v, "bpm"))}
         />
         <MetricCard
           label="Sleep last night"
@@ -37,6 +132,7 @@ function Readiness({ m }: { m: Metrics }) {
           flag={flag("sleep_hours")}
           unit="h"
           dp={1}
+          lastText={last("sleep_hours", (v) => hoursMinutes(v))}
         />
         <div className="card">
           <div className="metric-label">Form (TSB)</div>
@@ -278,6 +374,7 @@ export function Today() {
 
           <h2>Readiness</h2>
           <Readiness m={data.metrics} />
+          <YourNumbers m={data.metrics} />
         </>
       )}
     </main>

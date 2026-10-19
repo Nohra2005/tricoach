@@ -72,7 +72,7 @@ export const api = {
     const body = (await res.json()) as { authenticated?: boolean };
     return body.authenticated === true;
   },
-  health: () => request("/api/health").then((r) => r.json() as Promise<unknown>),
+  health: () => request(`/api/health?date=${localDate()}`).then((r) => r.json() as Promise<unknown>),
   today: (date: string) => call(TodayResponse, `/api/today?date=${date}`),
   checkin: (date: string, checkin: CheckIn) =>
     call(DayOnly, "/api/checkin", { method: "POST", body: JSON.stringify({ date, checkin }) }),
