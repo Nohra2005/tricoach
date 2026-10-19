@@ -5,14 +5,14 @@ import type { Config } from "@netlify/functions";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { DateStr } from "../../shared/schemas";
-import { PASSCODE_HEADER, requirePasscode } from "./lib/auth";
+import { DEMO_HEADER, PASSCODE_HEADER, requireUser } from "./lib/auth";
 import { HttpError, handle, json, readJson } from "./lib/http";
 import { getDay, putJob } from "./lib/store";
 
 const Body = z.object({ date: DateStr });
 
 export default handle(async (req) => {
-  requirePasscode(req);
+  requireUser(req);
   const { date } = Body.parse(await readJson(req));
   const day = await getDay(date);
   if (!day?.checkin) throw new HttpError(409, "Submit today's check-in first");
@@ -21,7 +21,13 @@ export default handle(async (req) => {
   await putJob({ id, date, status: "queued", error: null });
   const res = await fetch(new URL("/.netlify/functions/generate-background", req.url), {
     method: "POST",
-    headers: { "content-type": "application/json", [PASSCODE_HEADER]: req.headers.get(PASSCODE_HEADER) ?? "" },
+    // Forward whichever credential this request used (passcode or demo sandbox id).
+    headers: {
+      "content-type": "application/json",
+      ...(req.headers.get(DEMO_HEADER)
+        ? { [DEMO_HEADER]: req.headers.get(DEMO_HEADER)! }
+        : { [PASSCODE_HEADER]: req.headers.get(PASSCODE_HEADER) ?? "" }),
+    },
     body: JSON.stringify({ jobId: id, date }),
   });
   if (res.status !== 202 && !res.ok) {

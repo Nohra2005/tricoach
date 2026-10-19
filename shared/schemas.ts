@@ -289,6 +289,7 @@ export const WatchSend = z.object({
   // "full" has step labels; "simple" (no labels) is the fallback when full did not parse.
   format: z.enum(["full", "simple"]).optional(),
   parsed_ok: z.boolean().optional(), // false: intervals.icu kept it as text, the watch shows a note
+  simulated: z.boolean().optional(), // demo: shown, not sent
 });
 export type WatchSend = z.infer<typeof WatchSend>;
 

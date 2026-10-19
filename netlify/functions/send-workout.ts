@@ -5,16 +5,17 @@
 import type { Config } from "@netlify/functions";
 import { z } from "zod";
 import { DateStr } from "../../shared/schemas";
-import { requirePasscode } from "./lib/auth";
+import { requireUser } from "./lib/auth";
 import { HttpError, handle, json, readJson } from "./lib/http";
 import { getEvent, upsertWorkout } from "./lib/intervals";
+import { isDemo } from "./lib/auth";
 import { getDay, now, putDay } from "./lib/store";
 import { parsedSummary, toWorkoutText, watchType, whyNotSendable, type TextVariant } from "./lib/workout-text";
 
 const Body = z.object({ date: DateStr });
 
 export default handle(async (req) => {
-  requirePasscode(req);
+  requireUser(req);
   const { date } = Body.parse(await readJson(req));
   const day = await getDay(date);
   if (!day?.plan) throw new HttpError(409, "There is no session for this date");
@@ -25,6 +26,26 @@ export default handle(async (req) => {
   if (reason || !type) throw new HttpError(422, reason ?? "This session can't be sent to the watch.");
 
   const at = now();
+  if (isDemo()) {
+    // The demo shows exactly what would be sent, without contacting intervals.icu.
+    const text = toWorkoutText(plan, "full");
+    const steps = text.split("\n").filter((l) => l.startsWith("- ")).length;
+    day.watch = {
+      event_id: "demo",
+      sent_at: at,
+      plan_title: plan.title,
+      type,
+      text,
+      parsed_steps: steps,
+      parsed_minutes: plan.total_minutes,
+      format: "full",
+      parsed_ok: true,
+      simulated: true,
+    };
+    day.events.push({ at, type: "send_to_watch", detail: "demo: simulated, nothing sent" });
+    await putDay(day);
+    return json({ day });
+  }
   const send = (variant: TextVariant) => {
     const text = toWorkoutText(plan, variant);
     return upsertWorkout({

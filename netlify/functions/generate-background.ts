@@ -2,10 +2,13 @@
 // validates, and stores the day record and job status. Started by /api/generate.
 import { z } from "zod";
 import { DateStr, type DayRecord } from "../../shared/schemas";
-import { requirePasscode } from "./lib/auth";
+import { requireUser } from "./lib/auth";
 import { addDays, weekday } from "./lib/dates";
 import { hardDates, loadMetrics } from "./lib/data";
-import { generatePlan, provider } from "./lib/generator";
+import { generatePlan, provider, type GenerateResult } from "./lib/generator";
+import { isDemo } from "./lib/auth";
+import { demoSamplePlan } from "./lib/demo";
+import { addDemoUsage, demoUsageToday } from "./lib/store";
 import { PROMPT_VERSION } from "./lib/coach-prompt";
 import { HARD_RULE } from "./lib/intervals";
 import { getDay, getSettings, listDays, now, putDay, putJob } from "./lib/store";
@@ -31,8 +34,16 @@ function pastPlans(history: DayRecord[], date: string) {
     }));
 }
 
+// The demo shares the free Groq quota, so it is capped: per visitor per day and in total.
+const DEMO_PER_VISITOR = 5;
+async function demoMayUseAi(date: string, events: { type: string; at: string }[]): Promise<boolean> {
+  const limit = Number(process.env.DEMO_DAILY_LIMIT ?? 40);
+  const mine = events.filter((e) => e.type === "generate").length;
+  return mine < DEMO_PER_VISITOR && (await demoUsageToday(date)) < limit;
+}
+
 export default async (req: Request): Promise<void> => {
-  requirePasscode(req);
+  requireUser(req);
   const { jobId, date } = Body.parse(await req.json());
   await putJob({ id: jobId, date, status: "running", error: null });
   const started = Date.now();
@@ -67,18 +78,23 @@ export default async (req: Request): Promise<void> => {
       checkin,
     };
 
-    const result = await generatePlan(input, {
-      date,
-      checkin,
-      hardDates: hard,
-      maxHardPerWeek: settings.plan.max_hard_per_week,
-    });
+    const ctx = { date, checkin, hardDates: hard, maxHardPerWeek: settings.plan.max_hard_per_week };
+    let result: GenerateResult;
+    let usedSample = false;
+    if (isDemo() && !(await demoMayUseAi(date, day.events))) {
+      // Public demo over its daily AI budget: a labelled fixed sample instead.
+      usedSample = true;
+      result = { plan: demoSamplePlan(checkin), error: null, attempts: [{ ok: true, error: null, raw: null }], answeredBy: "demo-sample", inputTokens: 0, outputTokens: 0 };
+    } else {
+      if (isDemo()) await addDemoUsage(date);
+      result = await generatePlan(input, ctx);
+    }
 
     const finishedAt = now();
     day.metrics = metrics;
     day.generation = {
-      provider: provider().name,
-      model: provider().model(),
+      provider: usedSample ? "demo-sample" : provider().name,
+      model: usedSample ? "demo-sample" : provider().model(),
       answered_by: result.answeredBy,
       prompt_version: PROMPT_VERSION,
       started_at: startedAt,
