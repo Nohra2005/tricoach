@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CheckIn, DayRecord, Feedback, Metrics, TodayResponse } from "../../shared/schemas";
 import { ApiError, api, localDate, waitForJob } from "../api";
-import { ErrorBox, MetricCard, PlanView, fmt, hoursMinutes } from "../components/ui";
+import { ErrorBox, Icon, MetricTile, SPORT_NAME, SessionCard, fmt, hoursMinutes, sportClass } from "../components/ui";
 import { load, save } from "../storage";
 import { CheckInForm } from "./CheckIn";
 import { FeedbackForm } from "./FeedbackForm";
@@ -10,6 +10,8 @@ interface Cached {
   savedAt: string;
   data: TodayResponse;
 }
+
+const SPORTS = ["swim", "bike", "run"] as const;
 
 function minutesText(m: number) {
   return m >= 60 ? `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, "0")}m` : `${Math.round(m)} min`;
@@ -20,43 +22,192 @@ function dayLabel(date: string) {
   return new Date(y, mo - 1, d).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 }
 
+// ---------- readiness ----------
+
+function Readiness({ m }: { m: Metrics }) {
+  const flag = (k: string) => m.flags.find((f) => f.metric === k);
+  const last = (k: "hrv" | "resting_hr" | "sleep_hours", show: (v: number) => string) => {
+    const l = m.latest?.[k];
+    return l && l.date !== m.date ? `${show(l.value)} on ${dayLabel(l.date)}` : null;
+  };
+  const readiness = m.today.readiness ?? null;
+  return (
+    <>
+      <h2>Readiness</h2>
+      {readiness !== null && (
+        <div className="tile" style={{ marginBottom: 10 }}>
+          <div className="readiness-score">
+            <div className="tile-label">Watch readiness</div>
+            <div className="tile-value">
+              {Math.round(readiness)}
+              <small>/ 100</small>
+            </div>
+          </div>
+          <div className="range" aria-hidden>
+            <div className="range-band" style={{ left: 0, width: `${Math.min(100, Math.max(0, readiness))}%`, opacity: 0.9 }} />
+          </div>
+        </div>
+      )}
+      <div className="grid">
+        <MetricTile
+          label="HRV"
+          value={m.today.hrv}
+          display={fmt(m.today.hrv)}
+          unit="ms"
+          baseline={m.baselines.hrv}
+          flag={flag("hrv")}
+          lastText={last("hrv", (v) => fmt(v, "ms"))}
+        />
+        <MetricTile
+          label="Resting HR"
+          value={m.today.resting_hr}
+          display={fmt(m.today.resting_hr)}
+          unit="bpm"
+          baseline={m.baselines.resting_hr}
+          flag={flag("resting_hr")}
+          lastText={last("resting_hr", (v) => fmt(v, "bpm"))}
+        />
+        <MetricTile
+          label="Sleep"
+          value={m.today.sleep_hours}
+          display={hoursMinutes(m.today.sleep_hours)}
+          baseline={m.baselines.sleep_hours}
+          flag={flag("sleep_hours")}
+          dp={1}
+          lastText={last("sleep_hours", (v) => hoursMinutes(v))}
+        />
+        <div className="tile">
+          <div className="tile-label">Form</div>
+          {m.today.tsb === null ? (
+            <div className="tile-value empty">No data yet</div>
+          ) : (
+            <div className="tile-value">{fmt(m.today.tsb, "", 1)}</div>
+          )}
+          <div className="small muted num">Fitness {fmt(m.today.ctl, "", 1)}</div>
+          <div className="small muted num">Fatigue {fmt(m.today.atl, "", 1)}</div>
+          <div className="small muted">Form = fitness minus fatigue</div>
+        </div>
+      </div>
+      {m.flags.length > 0 && (
+        <div className="card notice">
+          {m.flags.map((f) => (
+            <p key={f.metric} className="small">
+              {f.rule}
+            </p>
+          ))}
+        </div>
+      )}
+      <details className="small muted" style={{ margin: "8px 0" }}>
+        <summary>How ranges work</summary>
+        <p>{m.flag_rule}</p>
+      </details>
+    </>
+  );
+}
+
+// ---------- last 7 days ----------
+
+function LastWeek({ m }: { m: Metrics }) {
+  const max = Math.max(1, ...SPORTS.map((s) => m.last7[s].minutes));
+  return (
+    <>
+      <h2>Last 7 days</h2>
+      <div className="card">
+        <div className="bars">
+          {SPORTS.map((s) => {
+            const t = m.last7[s];
+            return (
+              <div className={`bar-row ${sportClass(s)}`} key={s}>
+                <span className="bar-name">{SPORT_NAME[s]}</span>
+                <div className="bar-track" aria-hidden>
+                  <div className="bar-fill" style={{ width: `${(t.minutes / max) * 100}%` }} />
+                </div>
+                <span className="bar-value">{t.sessions ? minutesText(t.minutes) : "none"}</span>
+              </div>
+            );
+          })}
+        </div>
+        <p className="small muted num" style={{ marginTop: 12 }}>
+          {SPORTS.map((s) => `${SPORT_NAME[s]} ${m.last7[s].sessions}× load ${Math.round(m.last7[s].load)}`).join(" · ")}
+          {m.last7.other.sessions ? ` · Other ${m.last7.other.sessions}×` : ""}
+        </p>
+        <details style={{ marginTop: 8 }}>
+          <summary className="spread">
+            <strong className="small">Sessions in the last 14 days ({m.activities14.length})</strong>
+            <Icon name="chevron" className="chev" />
+          </summary>
+          {m.activities14.length === 0 ? (
+            <p className="small muted">Nothing from intervals.icu yet.</p>
+          ) : (
+            <ul className="rowlist">
+              {m.activities14.map((a) => (
+                <li key={a.id} className={`small ${sportClass(a.sport)}`}>
+                  <span className="dot" aria-hidden />
+                  <div>
+                    <strong>
+                      {dayLabel(a.date)} · {a.type}
+                      {a.hard ? " · hard" : ""}
+                    </strong>
+                    <div className="muted num">
+                      {a.distance_km !== null ? `${a.distance_km} km · ` : ""}
+                      load {fmt(a.load)} · HR {fmt(a.avg_hr)}
+                      {a.avg_watts !== null ? ` · ${a.avg_watts} W` : ""}
+                      {a.pace_per_100m ? ` · ${a.pace_per_100m}/100m` : ""}
+                      {a.pace_per_km ? ` · ${a.pace_per_km}/km` : ""}
+                    </div>
+                  </div>
+                  <span className="num" style={{ fontWeight: 800 }}>
+                    {a.minutes === null ? "no data" : `${a.minutes}′`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </details>
+      </div>
+      {m.hidden_activities > 0 && (
+        <div className="card notice small">
+          {m.hidden_activities} recent activities came into intervals.icu from Strava, and intervals.icu cannot share those
+          through its API. Link Garmin Connect to intervals.icu directly so they show here.
+        </div>
+      )}
+    </>
+  );
+}
+
+// ---------- your numbers ----------
+
 function YourNumbers({ m }: { m: Metrics }) {
   const t = m.thresholds;
   const ty = m.typical;
   if (!t && !ty) return null;
-  const sports = [
-    ["swim", "Swim"],
-    ["bike", "Bike"],
-    ["run", "Run"],
-  ] as const;
   return (
     <>
       <h2>Your numbers</h2>
-      <p className="small muted">What the coach uses for targets. Typed values in Settings override intervals.icu.</p>
-      {sports.map(([k, label]) => {
+      {SPORTS.map((k) => {
         const s = t?.[k];
         const typ = ty?.[k];
         return (
-          <details className="card" key={k}>
+          <details className={`card ${sportClass(k)}`} key={k}>
             <summary>
-              <div className="row" style={{ justifyContent: "space-between" }}>
-                <strong>{label}</strong>
-                <span className="small muted">
-                  {s?.threshold ?? "no threshold set"}
-                  {s?.threshold_source ? ` · ${s.threshold_source}` : ""}
+              <div className="spread">
+                <span className="tag solid">{SPORT_NAME[k]}</span>
+                <span className="row" style={{ gap: 6 }}>
+                  <strong className="num">{s?.threshold ?? "no threshold"}</strong>
+                  <Icon name="chevron" className="chev" />
                 </span>
               </div>
-              {typ && typ.sessions > 0 && (
-                <div className="small muted">
-                  Last {ty!.days} days: {typ.sessions} sessions
-                  {typ.median_pace ? `, typical ${typ.median_pace}` : ""}
-                  {typ.median_avg_watts !== null ? `, typical ${typ.median_avg_watts} W` : ""}
-                  {typ.median_avg_hr !== null ? `, HR ${typ.median_avg_hr}` : ""}
-                </div>
-              )}
+              <div className="small muted" style={{ marginTop: 6 }}>
+                {s?.threshold_source ? `Threshold from ${s.threshold_source}. ` : ""}
+                {typ && typ.sessions > 0
+                  ? `Last ${ty!.days} days: ${typ.sessions} sessions${typ.median_pace ? `, typical ${typ.median_pace}` : ""}${
+                      typ.median_avg_watts !== null ? `, typical ${typ.median_avg_watts} W` : ""
+                    }.`
+                  : `No sessions in the last ${ty?.days ?? 42} days yet.`}
+              </div>
             </summary>
             {s && (s.lthr !== null || s.max_hr !== null) && (
-              <p className="small">
+              <p className="small num" style={{ marginTop: 10 }}>
                 Threshold HR {fmt(s.lthr, "bpm")} · Max HR {fmt(s.max_hr, "bpm")}
                 {s.indoor_ftp ? ` · Indoor FTP ${s.indoor_ftp} W` : ""}
               </p>
@@ -64,8 +215,10 @@ function YourNumbers({ m }: { m: Metrics }) {
             {typ?.middle_half && <p className="small">Middle half of your sessions: {typ.middle_half}</p>}
             {s && s.work_zones.length > 0 && (
               <>
-                <h3>{k === "bike" ? "Power zones" : "Pace zones"}</h3>
-                <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
+                <div className="field-label" style={{ marginTop: 10 }}>
+                  {k === "bike" ? "Power zones" : "Pace zones"}
+                </div>
+                <ul className="small num" style={{ margin: 0, paddingLeft: 18 }}>
                   {s.work_zones.map((z) => (
                     <li key={z}>{z}</li>
                   ))}
@@ -74,8 +227,10 @@ function YourNumbers({ m }: { m: Metrics }) {
             )}
             {s && s.hr_zones.length > 0 && (
               <>
-                <h3 style={{ marginTop: 8 }}>Heart rate zones</h3>
-                <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
+                <div className="field-label" style={{ marginTop: 10 }}>
+                  Heart rate zones
+                </div>
+                <ul className="small num" style={{ margin: 0, paddingLeft: 18 }}>
                   {s.hr_zones.map((z) => (
                     <li key={z}>{z}</li>
                   ))}
@@ -83,11 +238,15 @@ function YourNumbers({ m }: { m: Metrics }) {
               </>
             )}
             {s && s.work_zones.length === 0 && s.hr_zones.length === 0 && (
-              <p className="small muted">No zones in intervals.icu for this sport. Set them in intervals.icu Settings, or add a threshold in TriCoach Settings.</p>
+              <p className="small muted">
+                No zones in intervals.icu for this sport. Set them in intervals.icu Settings, or add a threshold in TriCoach
+                Settings.
+              </p>
             )}
           </details>
         );
       })}
+      <p className="small muted">Values typed in Settings override intervals.icu.</p>
       {t?.notes.map((n) => (
         <p key={n} className="small muted">
           {n}
@@ -97,127 +256,12 @@ function YourNumbers({ m }: { m: Metrics }) {
   );
 }
 
-function Readiness({ m }: { m: Metrics }) {
-  const flag = (k: string) => m.flags.find((f) => f.metric === k);
-  const last = (k: "hrv" | "resting_hr" | "sleep_hours", show: (v: number) => string) => {
-    const l = m.latest?.[k];
-    return l && l.date !== m.date ? `${show(l.value)} on ${dayLabel(l.date)}` : null;
-  };
-  return (
-    <>
-      <div className="grid">
-        <MetricCard
-          label="HRV"
-          value={m.today.hrv}
-          display={fmt(m.today.hrv, "ms")}
-          baseline={m.baselines.hrv}
-          flag={flag("hrv")}
-          unit="ms"
-          lastText={last("hrv", (v) => fmt(v, "ms"))}
-        />
-        <MetricCard
-          label="Resting HR"
-          value={m.today.resting_hr}
-          display={fmt(m.today.resting_hr, "bpm")}
-          baseline={m.baselines.resting_hr}
-          flag={flag("resting_hr")}
-          unit="bpm"
-          lastText={last("resting_hr", (v) => fmt(v, "bpm"))}
-        />
-        <MetricCard
-          label="Sleep last night"
-          value={m.today.sleep_hours}
-          display={hoursMinutes(m.today.sleep_hours)}
-          baseline={m.baselines.sleep_hours}
-          flag={flag("sleep_hours")}
-          unit="h"
-          dp={1}
-          lastText={last("sleep_hours", (v) => hoursMinutes(v))}
-        />
-        <div className="card">
-          <div className="metric-label">Form (TSB)</div>
-          <div className="metric-value">{fmt(m.today.tsb, "", 1)}</div>
-          <div className="small muted">Fitness (CTL) {fmt(m.today.ctl, "", 1)}</div>
-          <div className="small muted">Fatigue (ATL) {fmt(m.today.atl, "", 1)}</div>
-          <div className="small muted">Form = fitness minus fatigue</div>
-        </div>
-      </div>
-      {m.flags.length > 0 && (
-        <div className="card flag">
-          {m.flags.map((f) => (
-            <p key={f.metric} className="small">
-              {f.rule}
-            </p>
-          ))}
-        </div>
-      )}
-      <details className="small muted" style={{ margin: "6px 0" }}>
-        <summary>How flags work</summary>
-        <p>{m.flag_rule}</p>
-      </details>
-
-      <h2>Last 7 days</h2>
-      <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>Sport</th>
-              <th className="num">Sessions</th>
-              <th className="num">Time</th>
-              <th className="num">Load</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(["swim", "bike", "run", "other"] as const).map((s) => (
-              <tr key={s}>
-                <td style={{ textTransform: "capitalize" }}>{s}</td>
-                <td className="num">{m.last7[s].sessions}</td>
-                <td className="num">{m.last7[s].sessions ? minutesText(m.last7[s].minutes) : "-"}</td>
-                <td className="num">{m.last7[s].sessions ? Math.round(m.last7[s].load) : "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <details style={{ marginTop: 8 }}>
-          <summary className="small" style={{ color: "var(--accent)" }}>
-            Sessions in the last 14 days ({m.activities14.length})
-          </summary>
-          <ul className="steps">
-            {m.activities14.map((a) => (
-              <li key={a.id} className="small">
-                <div className="step-head">
-                  <span>
-                    {a.date} · {a.type}
-                    {a.hard ? " · hard" : ""}
-                  </span>
-                  <span className="muted">{a.minutes === null ? "no data" : `${a.minutes} min`}</span>
-                </div>
-                <div className="muted">
-                  {a.distance_km !== null ? `${a.distance_km} km · ` : ""}
-                  load {fmt(a.load)} · HR {fmt(a.avg_hr)}
-                  {a.avg_watts !== null ? ` · ${a.avg_watts} W` : ""}
-                  {a.pace_per_100m ? ` · ${a.pace_per_100m}/100m` : ""}
-                  {a.pace_per_km ? ` · ${a.pace_per_km}/km` : ""}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </details>
-      </div>
-      {m.hidden_activities > 0 && (
-        <div className="card notice small">
-          {m.hidden_activities} recent activities came into intervals.icu from Strava, and intervals.icu cannot share those through
-          its API. Link Garmin Connect to intervals.icu directly so they show here.
-        </div>
-      )}
-    </>
-  );
-}
-
 function lastGenerationError(day: DayRecord): string | null {
   const last = [...day.events].reverse().find((e) => e.type === "generate" || e.type === "generate_failed");
   return last?.type === "generate_failed" ? last.detail : null;
 }
+
+// ---------- screen ----------
 
 export function Today() {
   const date = localDate();
@@ -298,12 +342,12 @@ export function Today() {
   }
 
   const day = data?.day;
-  const weekday = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+  const heading = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
 
   return (
     <main>
-      <h1>Today</h1>
-      <p className="muted">{weekday}</p>
+      <div className="brand">TriCoach</div>
+      <h1>{heading}</h1>
       {offlineSince && (
         <div className="card notice small">Offline. Showing data saved {new Date(offlineSince).toLocaleString()}.</div>
       )}
@@ -315,67 +359,76 @@ export function Today() {
       )}
 
       {data && day && (
-        <>
-          {generating !== null ? (
-            <div className="card row">
-              <div className="spinner" />
-              <span>Writing today's session... {generating > 0 ? `${generating}s` : ""}</span>
-            </div>
-          ) : day.plan && !editCheckin ? (
-            <>
-              <PlanView plan={day.plan} />
-              {day.feedback ? (
-                <div className="card">
-                  <h3>Your feedback</h3>
-                  <p>
-                    {day.feedback.followed.replace("_", " ")}
-                    {day.feedback.reason ? `: ${day.feedback.reason}` : ""}
-                  </p>
-                  <p className="small muted">
-                    RPE {fmt(day.feedback.rpe)} · feeling {fmt(day.feedback.feel)}/5
-                  </p>
-                  {day.matched_activity ? (
-                    <p className="small">
-                      Recorded: {day.matched_activity.type}, {fmt(day.matched_activity.minutes, "min")}, load{" "}
-                      {fmt(day.matched_activity.load)}
+        <div className="layout-split">
+          <div className="col">
+            {generating !== null ? (
+              <div className="card row" role="status">
+                <div className="spinner" />
+                <strong>Writing today's session</strong>
+                <span className="muted num">{generating > 0 ? `${generating}s` : ""}</span>
+              </div>
+            ) : day.plan && !editCheckin ? (
+              <>
+                <SessionCard plan={day.plan} />
+                {day.feedback ? (
+                  <div className="card">
+                    <div className="eyebrow muted">Your feedback</div>
+                    <p style={{ fontWeight: 750, textTransform: "capitalize" }}>
+                      {day.feedback.followed.replace("_", " ")}
+                      <span style={{ textTransform: "none", fontWeight: 400 }}>
+                        {day.feedback.reason ? `: ${day.feedback.reason}` : ""}
+                      </span>
                     </p>
-                  ) : (
-                    <p className="small muted">No activity from intervals.icu matched yet. History can check again later.</p>
-                  )}
-                </div>
-              ) : (
-                !offlineSince && <FeedbackForm busy={busy} onSubmit={submitFeedback} />
-              )}
-              {!offlineSince && !day.feedback && (
-                <button className="link" onClick={() => setEditCheckin(true)}>
-                  Change check-in and rewrite the session
+                    <p className="small muted num">
+                      RPE {fmt(day.feedback.rpe)} · feeling {fmt(day.feedback.feel)}/5
+                    </p>
+                    {day.matched_activity ? (
+                      <p className={`small ${sportClass(day.matched_activity.sport)}`}>
+                        <span className="tag">{day.matched_activity.type}</span>{" "}
+                        <span className="num">
+                          {fmt(day.matched_activity.minutes, "min")} · load {fmt(day.matched_activity.load)}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="small muted">No activity from intervals.icu matched yet. History can check again later.</p>
+                    )}
+                  </div>
+                ) : (
+                  !offlineSince && <FeedbackForm busy={busy} onSubmit={submitFeedback} />
+                )}
+                {!offlineSince && !day.feedback && (
+                  <button className="link" onClick={() => setEditCheckin(true)}>
+                    Change check-in and rewrite the session
+                  </button>
+                )}
+              </>
+            ) : day.checkin && !editCheckin ? (
+              <div className="card">
+                <div className="eyebrow muted">Check-in saved</div>
+                {lastGenerationError(day) && <ErrorBox message={`Last attempt failed: ${lastGenerationError(day)}`} />}
+                <button className="primary" style={{ marginTop: 10 }} onClick={generate} disabled={!!offlineSince}>
+                  Write today's session
                 </button>
-              )}
-            </>
-          ) : day.checkin && !editCheckin ? (
-            <div className="card">
-              <p>Check-in saved.</p>
-              {lastGenerationError(day) && <ErrorBox message={`Last attempt failed: ${lastGenerationError(day)}`} />}
-              <button className="primary" onClick={generate} disabled={!!offlineSince}>
-                Write today's session
+                <button className="link" onClick={() => setEditCheckin(true)}>
+                  Edit check-in
+                </button>
+              </div>
+            ) : (
+              !offlineSince && <CheckInForm initial={day.checkin} busy={busy} onSubmit={submitCheckin} />
+            )}
+            {editCheckin && (
+              <button className="link" onClick={() => setEditCheckin(false)}>
+                Cancel
               </button>
-              <button className="link" onClick={() => setEditCheckin(true)}>
-                Edit check-in
-              </button>
-            </div>
-          ) : (
-            !offlineSince && <CheckInForm initial={day.checkin} busy={busy} onSubmit={submitCheckin} />
-          )}
-          {editCheckin && (
-            <button className="link" onClick={() => setEditCheckin(false)}>
-              Cancel
-            </button>
-          )}
+            )}
+          </div>
 
-          <h2>Readiness</h2>
-          <Readiness m={data.metrics} />
-          <YourNumbers m={data.metrics} />
-        </>
+          <div className="col">
+            <Readiness m={data.metrics} />
+            <LastWeek m={data.metrics} />
+            <YourNumbers m={data.metrics} />
+          </div>
+        </div>
       )}
     </main>
   );

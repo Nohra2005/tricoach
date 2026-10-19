@@ -5,6 +5,7 @@ import { Today } from "./screens/Today";
 import { History } from "./screens/History";
 import { SettingsScreen } from "./screens/Settings";
 import { load, save } from "./storage";
+import { Icon } from "./components/ui";
 
 type Tab = "today" | "history" | "settings";
 
@@ -42,8 +43,15 @@ export function App() {
         />
       )}
       <nav className="tabs">
+        <div className="nav-brand brand">TriCoach</div>
         {(["today", "history", "settings"] as Tab[]).map((t) => (
-          <button key={t} className={tab === t ? "active" : ""} onClick={() => go(t)}>
+          <button
+            key={t}
+            className={tab === t ? "active" : ""}
+            onClick={() => go(t)}
+            aria-current={tab === t ? "page" : undefined}
+          >
+            <Icon name={t} />
             {t[0].toUpperCase() + t.slice(1)}
           </button>
         ))}

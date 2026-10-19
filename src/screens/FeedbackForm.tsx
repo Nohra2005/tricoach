@@ -32,24 +32,41 @@ export function FeedbackForm(props: { busy: boolean; onSubmit: (f: Feedback) => 
   }
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0 }}>After the session</h2>
-      <strong>Did you do it?</strong>
-      <div className="chips" style={{ marginTop: 6 }}>
-        {FOLLOWED.map(([v, label]) => (
-          <button key={v} type="button" className={`chip ${followed === v ? "selected" : ""}`} onClick={() => setFollowed(v)}>
-            {label}
-          </button>
-        ))}
+    <section className="card" aria-label="After the session">
+      <div className="eyebrow muted">After the session</div>
+      <h3 style={{ fontSize: "1.3rem", fontWeight: 850, margin: "4px 0 0" }}>How did it go?</h3>
+
+      <div className="question">
+        <div className="question-head">
+          <strong>Did you do it?</strong>
+        </div>
+        <div className="chips">
+          {FOLLOWED.map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              className={`chip ${followed === v ? "selected" : ""}`}
+              aria-pressed={followed === v}
+              onClick={() => setFollowed(v)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {followed && followed !== "as_planned" && (
+          <label className="field">
+            <span>Why?</span>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="For example: ran out of time, legs too heavy, pool lane closed"
+            />
+          </label>
+        )}
       </div>
-      {followed && followed !== "as_planned" && (
-        <label className="field">
-          <span>Why?</span>
-          <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="For example: ran out of time, legs too heavy, pool lane closed" />
-        </label>
-      )}
+
       {followed !== "skipped" && (
-        <TapScale label="Effort (RPE)" value={rpe} onChange={setRpe} max={10} low="very easy" high="maximal" />
+        <TapScale label="Effort (RPE)" value={rpe} onChange={setRpe} max={10} low="very easy" high="max" />
       )}
       <TapScale label="How do you feel now?" value={feel} onChange={setFeel} low="awful" high="great" />
       <label className="field">
@@ -58,8 +75,8 @@ export function FeedbackForm(props: { busy: boolean; onSubmit: (f: Feedback) => 
       </label>
       <ErrorBox message={error} />
       <button className="primary" disabled={props.busy} onClick={submit}>
-        {props.busy ? "Saving..." : "Save feedback"}
+        {props.busy ? "Saving..." : "Save"}
       </button>
-    </div>
+    </section>
   );
 }

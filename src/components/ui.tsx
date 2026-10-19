@@ -1,4 +1,5 @@
-// Small presentational components shared by the screens.
+// Presentational components shared by the screens.
+import type { ReactNode } from "react";
 import type { Flag, Metrics, Plan } from "../../shared/schemas";
 
 export function fmt(v: number | null | undefined, unit = "", dp = 0): string {
@@ -13,20 +14,82 @@ export function hoursMinutes(h: number | null): string {
   return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, "0")}m`;
 }
 
+// ---------- sports ----------
+
+type AnySport = Plan["sport"] | "swim" | "bike" | "run" | "other";
+
+// CSS class that sets --sport / --sport-soft (swim purple, bike green, run red).
+export function sportClass(sport: AnySport): string {
+  if (sport === "swim") return "sport-swim";
+  if (sport === "bike" || sport === "brick") return "sport-bike";
+  if (sport === "run") return "sport-run";
+  return "sport-other";
+}
+
+export const SPORT_NAME: Record<AnySport, string> = {
+  swim: "Swim",
+  bike: "Bike",
+  run: "Run",
+  brick: "Brick",
+  strength: "Strength",
+  mobility: "Mobility",
+  rest: "Rest",
+  other: "Other",
+};
+
+// ---------- icons (inline SVG, stroke = currentColor) ----------
+
+const ICONS: Record<string, ReactNode> = {
+  today: (
+    <>
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l2.5 2.5M9.5 2.5h5" />
+    </>
+  ),
+  history: <path d="M4 6h16M4 12h16M4 18h10" />,
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1M18.7 18.7l-2.1-2.1M7.4 7.4 5.3 5.3" />
+    </>
+  ),
+  chevron: <path d="m9 6 6 6-6 6" />,
+};
+
+export function Icon({ name, className }: { name: keyof typeof ICONS; className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      width="24"
+      height="24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {ICONS[name]}
+    </svg>
+  );
+}
+
+// ---------- metric tile ----------
+
 type Baseline = Metrics["baselines"]["hrv"];
 
-export function MetricCard(props: {
+export function MetricTile(props: {
   label: string;
   value: number | null;
   display: string;
+  unit?: string;
   baseline: Baseline;
   flag: Flag | undefined;
-  unit: string;
   dp?: number;
-  // Shown when today has no value: the most recent one, e.g. "41 ms on Sat 18 Oct".
-  lastText?: string | null;
+  lastText?: string | null; // most recent value when today has none, e.g. "41 ms on Sat 18 Oct"
 }) {
-  const { label, value, display, baseline: b, flag, unit, dp = 0, lastText } = props;
+  const { label, value, display, unit = "", baseline: b, flag, dp = 0, lastText } = props;
   const hasRange = b.mean28 !== null && b.sd28 !== null && b.n28 >= 10;
   let band: { left: number; width: number; dot: number } | null = null;
   if (hasRange && value !== null) {
@@ -38,17 +101,18 @@ export function MetricCard(props: {
     band = { left: pct(low), width: pct(high) - pct(low), dot: pct(value) };
   }
   return (
-    <div className={`card${flag ? " flag" : ""}`}>
-      <div className="metric-label">{label}</div>
+    <div className={`tile${flag ? " flag" : ""}`}>
+      <div className="tile-label">{label}</div>
       {value === null ? (
-        <div className="metric-value muted" style={{ fontSize: "1.1rem" }}>
-          no data today
-        </div>
+        <>
+          <div className="tile-value empty">No data today</div>
+          <div className="small muted">{lastText ? `Last: ${lastText}` : "Nothing in the last 6 weeks"}</div>
+        </>
       ) : (
-        <div className="metric-value">{display}</div>
-      )}
-      {value === null && (
-        <div className="small muted">{lastText ? `Last: ${lastText}` : "Nothing in the last 6 weeks"}</div>
+        <div className="tile-value">
+          {display}
+          {unit && <small>{unit}</small>}
+        </div>
       )}
       {band && (
         <div className="range" aria-hidden>
@@ -56,70 +120,93 @@ export function MetricCard(props: {
           <div className="range-dot" style={{ left: `${band.dot}%` }} />
         </div>
       )}
-      <div className="small muted">7-day avg {fmt(b.mean7, unit, dp)}</div>
-      <div className="small muted">28-day avg {fmt(b.mean28, unit, dp)}</div>
       {hasRange ? (
-        <div className="small muted">
-          Normal range {fmt(b.mean28! - b.sd28!, "", dp)} to {fmt(b.mean28! + b.sd28!, unit, dp)}
+        <div className="small muted num">
+          Normal {fmt(b.mean28! - b.sd28!, "", dp)} to {fmt(b.mean28! + b.sd28!, unit, dp)}
         </div>
       ) : (
-        <div className="small muted">Not enough data for a range ({b.n28} of 10 days)</div>
+        <div className="small muted">Range after 10 days ({b.n28} so far)</div>
       )}
-      {flag && <div className="flag-text">{flag.direction === "below" ? "Below" : "Above"} your normal range</div>}
-    </div>
-  );
-}
-
-export function IntensityBadge({ intensity }: { intensity: Plan["intensity"] }) {
-  return <span className={`badge ${intensity}`}>{intensity}</span>;
-}
-
-export function PlanView({ plan }: { plan: Plan }) {
-  return (
-    <div className="card">
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <IntensityBadge intensity={plan.intensity} />
-        <span className="muted small">
-          {plan.sport} · {plan.total_minutes} min
-        </span>
+      <div className="small muted num">
+        7d {fmt(b.mean7, unit, dp)} · 28d {fmt(b.mean28, unit, dp)}
       </div>
-      <h2 style={{ marginTop: 8 }}>{plan.title}</h2>
-      {plan.steps.length > 0 && (
-        <ol className="steps">
-          {plan.steps.map((s, i) => (
-            <li key={i}>
-              <div className="step-head">
-                <span>
-                  {s.reps && s.reps > 1 ? `${s.reps} x ` : ""}
-                  {s.label}
-                </span>
-                <span className="muted">
-                  {s.distance_m !== null ? `${s.distance_m} m` : s.minutes !== null ? `${s.minutes} min` : ""}
-                </span>
-              </div>
-              <div>{s.target}</div>
-              {s.notes && <div className="small muted">{s.notes}</div>}
-            </li>
-          ))}
-        </ol>
-      )}
-      <h3 style={{ marginTop: 14 }}>Why</h3>
-      <p>{plan.why}</p>
-      <h3>If you feel worse once you start</h3>
-      <p>{plan.easier_option}</p>
-      {plan.warnings.length > 0 && (
-        <div className="card notice" style={{ margin: "10px 0 0" }}>
-          <h3>Watch for</h3>
-          <ul style={{ margin: 0, paddingLeft: 18 }}>
-            {plan.warnings.map((w, i) => (
-              <li key={i}>{w}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {flag && <div className="flag-text">{flag.direction === "below" ? "Below" : "Above"} your range</div>}
     </div>
   );
 }
+
+// ---------- session ----------
+
+export function IntensityTag({ intensity }: { intensity: Plan["intensity"] }) {
+  const cls = intensity === "hard" ? "intensity-hard" : intensity === "moderate" ? "intensity-moderate" : "neutral";
+  return <span className={`tag ${cls}`}>{intensity}</span>;
+}
+
+export function SessionCard({ plan, children }: { plan: Plan; children?: ReactNode }) {
+  return (
+    <section className={`session ${sportClass(plan.sport)}`} aria-label="Today's session">
+      <div className={`session-band${plan.sport === "brick" ? " brick" : ""}`}>
+        <div className="spread">
+          <div className="session-meta">
+            <span>{SPORT_NAME[plan.sport]}</span>
+            <span aria-hidden>·</span>
+            <span>{plan.intensity}</span>
+          </div>
+          <div className="session-total">
+            {plan.total_minutes}
+            <small>min</small>
+          </div>
+        </div>
+        <div className="session-title">{plan.title}</div>
+      </div>
+      <div className="session-body">
+        {plan.steps.length > 0 && (
+          <ol className="steps">
+            {plan.steps.map((s, i) => (
+              <li className="step" key={i}>
+                <span className="step-rail" aria-hidden />
+                <div>
+                  <div className="step-label">
+                    {s.reps && s.reps > 1 && <span className="step-reps">{s.reps} × </span>}
+                    {s.label}
+                  </div>
+                  <div className="step-target">{s.target}</div>
+                  {s.notes && <div className="small muted">{s.notes}</div>}
+                </div>
+                <div className="step-amount">
+                  {s.distance_m !== null ? `${s.distance_m} m` : s.minutes !== null ? `${s.minutes}′` : ""}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+        <div className="why">
+          <div className="eyebrow muted">Why this session</div>
+          <p style={{ marginBottom: 0 }}>{plan.why}</p>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <div className="eyebrow muted">Feeling worse once you start?</div>
+          <p>{plan.easier_option}</p>
+        </div>
+        {plan.warnings.length > 0 && (
+          <div className="card notice" style={{ margin: "8px 0 0" }}>
+            <div className="eyebrow" style={{ color: "var(--warn)" }}>
+              Watch for
+            </div>
+            <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+              {plan.warnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {children}
+      </div>
+    </section>
+  );
+}
+
+// ---------- inputs ----------
 
 export function TapScale(props: {
   label: string;
@@ -131,8 +218,8 @@ export function TapScale(props: {
 }) {
   const { label, value, onChange, max = 5, low, high } = props;
   return (
-    <div style={{ margin: "14px 0" }}>
-      <div className="row" style={{ justifyContent: "space-between" }}>
+    <div className="question" role="group" aria-label={label}>
+      <div className="question-head">
         <strong>{label}</strong>
         {low && high && (
           <span className="small muted">
@@ -140,7 +227,7 @@ export function TapScale(props: {
           </span>
         )}
       </div>
-      <div className="scale" style={{ gridTemplateColumns: `repeat(${max}, 1fr)`, marginTop: 6 }}>
+      <div className="scale" style={{ gridTemplateColumns: `repeat(${max}, 1fr)` }}>
         {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
           <button
             key={n}

@@ -27,7 +27,8 @@ export function Passcode({ onDone }: { onDone: () => void }) {
 
   return (
     <main>
-      <h1>TriCoach</h1>
+      <div className="brand">TriCoach</div>
+      <h1>Your daily session, from your data.</h1>
       <p className="muted">Enter your passcode. This device will remember it.</p>
       <form onSubmit={submit}>
         <label className="field">

@@ -12,8 +12,8 @@ export default defineConfig({
         name: "TriCoach",
         short_name: "TriCoach",
         description: "Daily triathlon session from your Garmin data and a morning check-in",
-        theme_color: "#0f766e",
-        background_color: "#f7f7f5",
+        theme_color: "#111111",
+        background_color: "#f3f3f0",
         display: "standalone",
         start_url: "/",
         icons: [
