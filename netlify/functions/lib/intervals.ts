@@ -12,7 +12,8 @@ import type { ActivitySummary } from "../../../shared/schemas";
 import { HttpError, env } from "./http";
 import { addDays } from "./dates";
 
-const BASE = "https://intervals.icu/api/v1";
+// INTERVALS_BASE_URL is only for local testing against scripts/mock-apis.mjs.
+const BASE = process.env.INTERVALS_BASE_URL || "https://intervals.icu/api/v1";
 
 const num = z.number().nullish().transform((v) => (typeof v === "number" && Number.isFinite(v) ? v : null));
 const str = z.string().nullish().transform((v) => v ?? null);

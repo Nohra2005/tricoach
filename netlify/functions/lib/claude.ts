@@ -87,7 +87,7 @@ export async function generatePlan(input: unknown, ctx: RuleContext): Promise<Ge
     } catch (e) {
       // API errors (auth, bad request, overload after SDK retries) are not fixable by re-asking.
       if (e instanceof Anthropic.APIError) {
-        const msg = `Anthropic API error ${e.status ?? ""}: ${e.message}`;
+        const msg = `Anthropic API error: ${e.message}`;
         attempts.push({ ok: false, error: msg, raw });
         return { plan: null, error: msg, attempts, answeredBy, inputTokens, outputTokens };
       }

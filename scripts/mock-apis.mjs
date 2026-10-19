@@ -1,0 +1,113 @@
+// Local stand-ins for intervals.icu and the Anthropic Messages API, so the whole app
+// can be exercised without real keys or API spend.
+//
+//   node scripts/mock-apis.mjs            (listens on http://localhost:8787)
+//
+// Then in .env:
+//   INTERVALS_BASE_URL=http://localhost:8787/intervals/api/v1
+//   ANTHROPIC_BASE_URL=http://localhost:8787/anthropic
+//   INTERVALS_API_KEY=x  INTERVALS_ATHLETE_ID=i1  ANTHROPIC_API_KEY=x  APP_PASSCODE=test
+//
+// MOCK_PLAN=bad makes the first Claude answer break a rule, to exercise the retry.
+import { createServer } from "node:http";
+
+const PORT = Number(process.env.MOCK_PORT ?? 8787);
+let claudeCalls = 0;
+
+function day(offset) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+function wellness() {
+  return Array.from({ length: 42 }, (_, i) => {
+    const off = i - 41;
+    const row = { id: day(off), ctl: 55 + i * 0.1, atl: 60 + (i % 5), restingHR: 48 + (i % 3), weight: 58 };
+    if (i % 7 !== 3) row.hrv = off === 0 ? 38 : 55 + ((i * 7) % 9) - 4; // today low, some days missing
+    if (i % 6 !== 2) row.sleepSecs = (7 + (i % 3) * 0.4) * 3600;
+    return row;
+  });
+}
+
+function activities() {
+  const a = (off, type, mins, dist, load, intensity, extra = {}) => ({
+    id: `i${1000 - off}`,
+    start_date_local: `${day(off)}T07:30:00`,
+    type,
+    name: `${type} session`,
+    moving_time: mins * 60,
+    distance: dist,
+    icu_training_load: load,
+    icu_intensity: intensity,
+    average_heartrate: 140,
+    ...extra,
+  });
+  return [
+    a(-1, "Swim", 45, 2000, 35, 70, { pool_length: 25 }),
+    a(-2, "VirtualRide", 60, 28000, 62, 78, { icu_average_watts: 160, trainer: true }),
+    a(-4, "Run", 50, 8500, 58, 88),
+    a(-5, "Swim", 40, 1800, 30, 68),
+    a(-8, "Ride", 90, 40000, 85, 72),
+    { id: "i1", start_date_local: `${day(-3)}T18:00:00`, source: "STRAVA", _note: "STRAVA activities are not available via the API" },
+  ];
+}
+
+const goodPlan = {
+  sport: "swim",
+  title: "Aerobic swim with stroke-length drills",
+  total_minutes: 45,
+  intensity: "easy",
+  steps: [
+    { label: "Warm-up", minutes: null, distance_m: 300, target: "Easy, RPE 3", reps: null, notes: null },
+    { label: "Catch-up drill", minutes: null, distance_m: 50, target: "RPE 4, long strokes", reps: 6, notes: "20 s rest" },
+    { label: "Main set", minutes: null, distance_m: 200, target: "2:15/100m", reps: 4, notes: "30 s rest" },
+    { label: "Cool-down", minutes: null, distance_m: 200, target: "Easy", reps: null, notes: null },
+  ],
+  why: "HRV is 38 ms, below your normal range of 50 to 60 ms, and form is -6. Sleep was 7.4 h, inside your range. An easy swim keeps the routine without adding load.",
+  easier_option: "Swim 1000 m easy with no main set.",
+  warnings: ["Stop if you feel unusually tired in the warm-up."],
+};
+
+function message(plan) {
+  return {
+    id: `msg_mock_${claudeCalls}`,
+    type: "message",
+    role: "assistant",
+    model: "claude-sonnet-5-5",
+    content: [{ type: "text", text: JSON.stringify(plan) }],
+    stop_reason: "end_turn",
+    stop_sequence: null,
+    usage: { input_tokens: 3200, output_tokens: 700 },
+  };
+}
+
+function send(res, status, body) {
+  res.writeHead(status, { "content-type": "application/json" });
+  res.end(JSON.stringify(body));
+}
+
+createServer(async (req, res) => {
+  const url = new URL(req.url, `http://localhost:${PORT}`);
+  let body = "";
+  for await (const chunk of req) body += chunk;
+  console.log(req.method, url.pathname + url.search);
+
+  if (url.pathname.startsWith("/intervals/")) {
+    if (!req.headers.authorization?.startsWith("Basic ")) return send(res, 401, { error: "no auth" });
+    if (url.pathname.endsWith("/wellness")) return send(res, 200, wellness());
+    if (url.pathname.endsWith("/activities")) return send(res, 200, activities());
+    if (/\/athlete\/[^/]+$/.test(url.pathname)) return send(res, 200, { id: "i1", name: "Mock Athlete" });
+  }
+  if (url.pathname.startsWith("/anthropic/v1/models/")) {
+    return send(res, 200, { id: url.pathname.split("/").pop(), type: "model", display_name: "Mock model", created_at: "2026-01-01T00:00:00Z" });
+  }
+  if (url.pathname === "/anthropic/v1/messages") {
+    claudeCalls++;
+    const params = JSON.parse(body);
+    console.log("  claude params:", JSON.stringify({ model: params.model, max_tokens: params.max_tokens, fallbacks: params.fallbacks, output_config: { effort: params.output_config?.effort, format: params.output_config?.format?.type }, beta: req.headers["anthropic-beta"] }));
+    const bad = process.env.MOCK_PLAN === "bad" && claudeCalls % 2 === 1;
+    return send(res, 200, message(bad ? { ...goodPlan, total_minutes: 500 } : goodPlan));
+  }
+  send(res, 404, { error: `mock has no route for ${url.pathname}` });
+}).listen(PORT, () => console.log(`mock APIs on http://localhost:${PORT}`));
