@@ -30,19 +30,31 @@ describe("toWorkoutText", () => {
     };
     expect(toWorkoutText(plan)).toBe(
       [
-        "- Warm-up 300mtr",
+        "- Warm-up 300mtr intensity=warmup",
         "",
         "6x",
         "- catch-up drill 50mtr",
-        "- Rest 20s",
+        "- 20s intensity=rest",
         "",
         "4x",
-        "- Main set 200mtr 2:20-2:15/100m Pace",
-        "- Rest 30s",
+        "- Main set 200mtr 2:20/100m pace",
+        "- 30s intensity=rest",
         "",
-        "- Cool-down 200mtr",
+        "- Cool-down 200mtr intensity=cooldown",
       ].join("\n"),
     );
+    // fallback without labels
+    expect(toWorkoutText(plan, "simple").split("\n")[0]).toBe("- 300mtr intensity=warmup");
+    expect(toWorkoutText(plan, "simple")).toContain("- 200mtr 2:20/100m pace");
+  });
+
+  it("rounds a swim pace range to one pace in 5 s steps", () => {
+    const plan: StoredPlan = {
+      ...base,
+      sport: "swim",
+      steps: [step({ label: "Steady", distance_m: 400, target_spec: { kind: "pace", low: 128, high: 133 } })],
+    };
+    expect(toWorkoutText(plan)).toBe("- Steady 400mtr 2:10/100m pace");
   });
 
   it("writes a bike with power and HR targets", () => {
@@ -56,7 +68,7 @@ describe("toWorkoutText", () => {
       ],
     };
     expect(toWorkoutText(plan)).toBe(
-      ["- Warm up 10m Z1-Z2 HR", "", "3x", "- Sweet spot 8m 88-93%", "- Rest 2m", "", "- Spin 1m30 50%"].join("\n"),
+      ["- Warm up 10m Z1-Z2 HR intensity=warmup", "", "3x", "- Sweet spot 8m 88-93%", "- 2m intensity=rest", "", "- Spin 1m30 50%"].join("\n"),
     );
   });
 

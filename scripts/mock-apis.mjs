@@ -16,6 +16,7 @@ import { createServer } from "node:http";
 const PORT = Number(process.env.MOCK_PORT ?? 8787);
 let modelCalls = 0;
 let rateLimited = false;
+let lastEvent = null;
 
 function day(offset) {
   const d = new Date();
@@ -118,9 +119,20 @@ createServer(async (req, res) => {
       console.log("  event:", url.search, JSON.stringify({ category: ev.category, type: ev.type, uid: ev.uid, date: ev.start_date_local, name: ev.name }));
       console.log(ev.description.split("\n").map((l) => "    | " + l).join("\n"));
       // Rough stand-in for intervals.icu parsing: one step per "- " line.
-      const steps = ev.description.split("\n").filter((l) => l.startsWith("- ")).map((l) => ({ text: l }));
-      return send(res, 200, { id: 4242, ...ev, workout_doc: { duration: ev.moving_time, steps } });
+      // MOCK_NOPARSE=labels: descriptions with step labels are "not parsed" (no workout_doc),
+      // to exercise the fallback. MOCK_NOPARSE=all: nothing parses.
+      const lines = ev.description.split("\n").filter((l) => l.startsWith("- "));
+      const hasLabels = lines.some((l) => /^- [A-Za-z]/.test(l));
+      const mode = process.env.MOCK_NOPARSE;
+      if (mode === "all" || (mode === "labels" && hasLabels)) {
+        console.log("  (mock: not parsed)");
+        lastEvent = { id: 4242, ...ev };
+        return send(res, 200, lastEvent);
+      }
+      lastEvent = { id: 4242, ...ev, workout_doc: { duration: ev.moving_time, steps: lines.map((l) => ({ text: l })) } };
+      return send(res, 200, lastEvent);
     }
+    if (/\/events\/\d+$/.test(url.pathname) && req.method === "GET") return send(res, 200, lastEvent ?? {});
   }
   if (url.pathname.startsWith("/groq/openai/v1/models/")) {
     return send(res, 200, { id: url.pathname.split("/models/")[1], object: "model", owned_by: "mock" });

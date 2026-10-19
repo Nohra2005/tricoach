@@ -192,6 +192,11 @@ export async function upsertWorkout(w: PlannedWorkout) {
   return EventResponse.parse(data);
 }
 
+// GET /athlete/{id}/events/{eventId} : used to read back workout_doc after a create.
+export async function getEvent(id: string) {
+  return EventResponse.parse(await get(`/events/${encodeURIComponent(id)}`));
+}
+
 export async function getAthlete() {
   return AthleteSchema.parse(await get(""));
 }

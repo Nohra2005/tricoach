@@ -7,9 +7,9 @@ import { z } from "zod";
 import { DateStr } from "../../shared/schemas";
 import { requirePasscode } from "./lib/auth";
 import { HttpError, handle, json, readJson } from "./lib/http";
-import { upsertWorkout } from "./lib/intervals";
+import { getEvent, upsertWorkout } from "./lib/intervals";
 import { getDay, now, putDay } from "./lib/store";
-import { parsedSummary, toWorkoutText, watchType, whyNotSendable } from "./lib/workout-text";
+import { parsedSummary, toWorkoutText, watchType, whyNotSendable, type TextVariant } from "./lib/workout-text";
 
 const Body = z.object({ date: DateStr });
 
@@ -24,29 +24,45 @@ export default handle(async (req) => {
   const type = watchType(plan, day.checkin);
   if (reason || !type) throw new HttpError(422, reason ?? "This session can't be sent to the watch.");
 
-  const text = toWorkoutText(plan);
   const at = now();
-  try {
-    const event = await upsertWorkout({
-      uid: `tricoach-${date}`,
+  const send = (variant: TextVariant) => {
+    const text = toWorkoutText(plan, variant);
+    return upsertWorkout({
+      uid: `tricoach-${date}`, // same uid: sending again replaces the calendar entry
       date,
       type,
       name: plan.title,
       description: text,
       moving_time: plan.total_minutes * 60,
       indoor: type === "VirtualRide" || (type === "Swim" && !!day.checkin?.locations.includes("pool")),
+    }).then(async (event) => {
+      // Read back the parsed steps if the create response did not include them.
+      const doc = event.workout_doc ?? (await getEvent(event.id).catch(() => null))?.workout_doc;
+      return { event, text, variant, parsed: parsedSummary(doc) };
     });
-    const parsed = parsedSummary(event.workout_doc);
+  };
+  try {
+    // If intervals.icu could not read the labelled version (no steps came back), resend
+    // without labels; the same uid overwrites the first attempt.
+    let r = await send("full");
+    if (!r.parsed.steps) r = await send("simple");
+    const ok = !!r.parsed.steps;
     day.watch = {
-      event_id: event.id,
+      event_id: r.event.id,
       sent_at: at,
       plan_title: plan.title,
       type,
-      text,
-      parsed_steps: parsed.steps,
-      parsed_minutes: parsed.minutes,
+      text: r.text,
+      parsed_steps: r.parsed.steps,
+      parsed_minutes: r.parsed.minutes,
+      format: r.variant,
+      parsed_ok: ok,
     };
-    day.events.push({ at, type: "send_to_watch", detail: `${type}, ${parsed.steps ?? "?"} steps, event ${event.id}` });
+    day.events.push({
+      at,
+      type: ok ? "send_to_watch" : "send_to_watch_failed",
+      detail: `${type}, ${r.variant} text, ${r.parsed.steps ?? 0} steps parsed, event ${r.event.id}`,
+    });
     await putDay(day);
     return json({ day });
   } catch (e) {

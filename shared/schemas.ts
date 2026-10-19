@@ -286,6 +286,9 @@ export const WatchSend = z.object({
   text: z.string(), // the workout text sent
   parsed_steps: z.number().int().nullable(), // steps intervals.icu understood
   parsed_minutes: z.number().nullable(),
+  // "full" has step labels; "simple" (no labels) is the fallback when full did not parse.
+  format: z.enum(["full", "simple"]).optional(),
+  parsed_ok: z.boolean().optional(), // false: intervals.icu kept it as text, the watch shows a note
 });
 export type WatchSend = z.infer<typeof WatchSend>;
 

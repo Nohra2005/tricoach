@@ -289,6 +289,12 @@ function WatchPanel(props: { day: DayRecord; busy: boolean; offline: boolean; on
           )}
         </div>
       </div>
+      {w && !stale && w.parsed_ok === false && (
+        <div className="card notice small" style={{ margin: "10px 0 0" }}>
+          <strong>intervals.icu kept this as text</strong>, so your watch will show a note instead of guided steps. What was sent
+          below shows the exact text intervals.icu received.
+        </div>
+      )}
       {legacy ? (
         <p className="small muted">This plan was written before watch support. Change the check-in and rewrite it to send it.</p>
       ) : (
@@ -308,7 +314,6 @@ function WatchPanel(props: { day: DayRecord; busy: boolean; offline: boolean; on
       )}
       <p className="small muted" style={{ marginBottom: 0 }}>
         Then sync your watch. The workout appears under Training &gt; Workouts or on today's calendar.
-        {w && w.parsed_steps === 0 ? " intervals.icu found no steps in it; check What was sent." : ""}
       </p>
     </div>
   );

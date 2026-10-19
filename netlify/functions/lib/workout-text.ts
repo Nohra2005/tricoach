@@ -5,6 +5,14 @@
 //   - durations: 10m, 30s, 1m30 (m means minutes); distances: 400mtr, 2km
 //   - power: 88-93% (of FTP); HR zone: Z2 HR, Z2-Z3 HR; pace: 5:40-5:30/km Pace
 //   - repeats: a line "4x" with a blank line before and after the block
+// Swim specifics (intervals.icu forum swim threads, and the intervals-icu-mcp changelog,
+// which checked what the server actually parses):
+//   - absolute swim pace needs the trailing "pace" keyword: "- 200mtr 1:45/100m pace"
+//   - only "intensity=rest" exports a real rest step to the device
+//   - "intensity=warmup" / "intensity=cooldown" mark the step type
+// If a description does not parse, intervals.icu stores it as plain text and Garmin
+// shows a note instead of steps, so the sender reads back workout_doc and retries with
+// the "simple" variant (no labels) before giving up.
 import type { CheckIn, StoredPlan } from "../../../shared/schemas";
 import { fmtSecs } from "./thresholds";
 
@@ -56,6 +64,7 @@ function distance(metres: number, swim: boolean): string {
 }
 
 type Step = StoredPlan["steps"][number];
+export type TextVariant = "full" | "simple";
 
 function target(step: Step, sport: StoredPlan["sport"]): string {
   const t = step.target_spec;
@@ -67,35 +76,49 @@ function target(step: Step, sport: StoredPlan["sport"]): string {
     case "hr_zone":
       return t.low === t.high ? `Z${t.low} HR` : `Z${t.low}-Z${t.high} HR`;
     case "pace": {
-      const unit = sport === "swim" ? "/100m" : "/km";
+      if (sport === "swim") {
+        // One absolute pace, in the form known to parse: "1:45/100m pace"
+        return `${fmtSecs(Math.round(((t.low + t.high) / 2) / 5) * 5)}/100m pace`;
+      }
       // slower pace first, as in the intervals.icu examples ("7:15-7:00/km Pace")
-      return t.low === t.high ? `${fmtSecs(t.low)}${unit} Pace` : `${fmtSecs(t.high)}-${fmtSecs(t.low)}${unit} Pace`;
+      return t.low === t.high ? `${fmtSecs(t.low)}/km Pace` : `${fmtSecs(t.high)}-${fmtSecs(t.low)}/km Pace`;
     }
     default:
       return ""; // rpe and none: open step on the watch
   }
 }
 
-function line(step: Step, sport: StoredPlan["sport"]): string | null {
+function stepType(label: string): string {
+  if (/warm/i.test(label)) return "intensity=warmup";
+  if (/cool|easy down|loosen/i.test(label)) return "intensity=cooldown";
+  return "";
+}
+
+function line(step: Step, sport: StoredPlan["sport"], variant: TextVariant): string | null {
   const amount =
     step.distance_m !== null ? distance(step.distance_m, sport === "swim") : step.minutes !== null ? duration(step.minutes) : null;
   if (!amount) return null;
-  return ["-", cleanLabel(step.label), amount, target(step, sport)].filter(Boolean).join(" ");
+  const label = variant === "full" ? cleanLabel(step.label) : "";
+  return ["-", label, amount, target(step, sport), stepType(step.label)].filter(Boolean).join(" ");
 }
 
-export function toWorkoutText(plan: StoredPlan): string {
+const restLine = (seconds: number) => `- ${duration(seconds / 60)} intensity=rest`;
+
+export function toWorkoutText(plan: StoredPlan, variant: TextVariant = "full"): string {
   const out: string[] = [];
   for (const step of plan.steps) {
-    const l = line(step, plan.sport);
+    const l = line(step, plan.sport, variant);
     if (!l) continue;
     if (step.reps && step.reps > 1) {
       if (out.length && out[out.length - 1] !== "") out.push("");
       out.push(`${step.reps}x`);
       out.push(l);
-      if (step.rest_seconds && step.rest_seconds > 0) out.push(`- Rest ${duration(step.rest_seconds / 60)}`);
+      if (step.rest_seconds && step.rest_seconds > 0) out.push(restLine(step.rest_seconds));
       out.push("");
     } else {
       out.push(l);
+      // a single step followed by rest (rare) still gets a real rest step
+      if (step.rest_seconds && step.rest_seconds > 0) out.push(restLine(step.rest_seconds));
     }
   }
   while (out.length && out[out.length - 1] === "") out.pop();
