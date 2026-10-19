@@ -4,10 +4,13 @@ A personal triathlon coaching PWA for one athlete. Each morning it reads Garmin 
 
 See [PLAN.md](PLAN.md) for the architecture and data model.
 
+**Try it:** [triathloncoach.netlify.app/?demo](https://triathloncoach.netlify.app/?demo) opens a demo with a made-up athlete. No passcode needed.
+
 ## How it works
 
 - **Frontend**: Vite + React + TypeScript, installable as a PWA. The last day is kept on the device so it opens offline.
-- **Backend**: Netlify Functions under `/api/*`. All API keys stay on the server. Every function checks the `x-tricoach-passcode` header against `APP_PASSCODE`.
+- **Backend**: Netlify Functions under `/api/*`. All API keys stay on the server. Every request carries either a passcode (`x-tricoach-passcode`), which picks the account, or a demo sandbox id (`x-tricoach-demo`).
+- **Accounts**: up to 5 athletes, each with their own passcode, intervals.icu key, settings and history ([users.ts](netlify/functions/lib/users.ts)). Each account's data is stored under its own prefix; account 1 uses the original keys.
 - **Storage**: Netlify Blobs (store `tricoach`): `settings.json`, `days/YYYY-MM-DD.json`, `jobs/<id>.json`.
 - **Generation**: `/api/generate` starts the `generate-background` function (15 minute limit), which calls the model (Groq `openai/gpt-oss-120b` by default) with strict JSON-schema output validated by zod, checks the plan against hard rules (location, time, hard-day spacing, pain), retries once with the errors, and otherwise reports the error. A free-tier rate limit (HTTP 429) is waited out using `retry-after`. The app polls `/api/job`.
 - **Coaching rules**: [netlify/functions/lib/coach-prompt.ts](netlify/functions/lib/coach-prompt.ts). Edit it and redeploy; each plan stores a hash of the prompt that produced it.
@@ -19,11 +22,14 @@ Set these in Netlify (Site configuration > Environment variables). Names are in 
 
 | Name | What |
 |---|---|
+| `APP_USER_NAME` | Optional. Name shown for account 1 |
 | `INTERVALS_API_KEY` | intervals.icu > Settings > Developer Settings > API key |
 | `INTERVALS_ATHLETE_ID` | Your athlete ID, shown on the same page (looks like `i123456`) |
 | `APP_PASSCODE` | Any passcode you choose; the app asks for it once per device |
 | `GROQ_API_KEY` | Free: console.groq.com > API Keys |
 | `GROQ_MODEL` | Optional. Default `openai/gpt-oss-120b` (must support strict structured outputs) |
+
+**More accounts:** for account 2, add `USER2_NAME`, `USER2_PASSCODE`, `USER2_INTERVALS_API_KEY` and `USER2_INTERVALS_ATHLETE_ID` (up to `USER5_...`). Each person needs their own free intervals.icu account linked to their own Garmin. Passcodes must all differ; `/api/health` warns if two match. Redeploy after adding variables.
 
 Groq does not keep inference request data by default ([their data page](https://console.groq.com/docs/your-data)). Your exact free-tier limits are in your Groq account under Settings > Limits; the app needs about 1 to 3 requests a day.
 
@@ -84,6 +90,17 @@ Netlify's pricing page lists automatic credit top-ups only for paid plans, so th
 
 [CI](.github/workflows/ci.yml) runs the type check, tests and build on GitHub Actions for every push; it does not use Netlify credits.
 
+## The public demo (for reviewers)
+
+Send people [triathloncoach.netlify.app/?demo](https://triathloncoach.netlify.app/?demo), or they can tap **Try the demo** on the sign-in screen.
+
+- **Made-up data only.** The demo athlete's six weeks of HRV, sleep, resting HR, fitness and sessions are generated ([demo.ts](netlify/functions/lib/demo.ts)) in the same shape as the intervals.icu API, so the real metrics, AI and rule code run on them. The demo never calls intervals.icu and cannot read any real account.
+- **Private sandbox per visitor.** The browser keeps a random id; each visitor's check-ins, sessions and feedback are stored under `demo/<id>/`. Exit demo (top banner or Settings) forgets it.
+- **Real AI, capped.** Sessions are written live by the same model, up to 5 per visitor per day and `DEMO_DAILY_LIMIT` (default 40) across all visitors, so the free Groq quota is protected. Past the cap the demo shows a fixed sample session that is clearly labelled and still passes the same rule checks.
+- **Send to watch is simulated.** It shows the exact workout text that would go to intervals.icu and Garmin.
+
+**Sharing the code:** the repository is private. Either add reviewers on GitHub (Settings > Collaborators), or make it public after checking you are happy for the default athlete profile in [defaults.ts](netlify/functions/lib/defaults.ts) and [PLAN.md](PLAN.md) to be public. No keys or passcodes are in the repository.
+
 ## First checks after deploying
 
 1. Open `https://<your-site>/api/health` in a browser. Without the passcode it lists which environment variables are set (true/false only).
@@ -95,6 +112,7 @@ Netlify's pricing page lists automatic credit top-ups only for paid plans, so th
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/health` | Key and data-field check |
+| GET | `/api/me` | Which account the passcode (or demo id) belongs to |
 | GET | `/api/today?date=` | Metrics and the stored day |
 | POST | `/api/checkin` | `{date, checkin}` |
 | POST | `/api/generate` | `{date}`, returns `{jobId}` |
@@ -103,3 +121,4 @@ Netlify's pricing page lists automatic credit top-ups only for paid plans, so th
 | POST | `/api/match` | Re-match recent days with no recorded activity |
 | GET | `/api/history[?format=csv\|json]` | All days, or an export download |
 | GET/PUT | `/api/settings` | Profile and plan settings |
+| POST | `/api/send-workout` | `{date}`, puts the session on the intervals.icu calendar (simulated in the demo) |
