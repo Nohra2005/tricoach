@@ -32,6 +32,7 @@ export function demoWellness(oldest: string, newest: string) {
       atl: round(50 + wave * 8 + r() * 4, 1),
       readiness: round(55 + wave * 15 + r() * 15),
       weight: 61.5,
+      sportInfo: [{ type: "Ride", eftp: 205, wPrime: 15000, pMax: 600 }],
     });
   }
   return rows;
@@ -108,8 +109,24 @@ export function demoApi(path: string, params: Record<string, string>): unknown {
   if (path === "/wellness") return demoWellness(params.oldest, params.newest);
   if (path === "/activities") return demoActivities(params.oldest, params.newest, addDays(params.newest, -1));
   if (path.startsWith("/events/")) return { id: path.split("/").pop() };
+  if (path === "/pace-curves") return params.type === "Swim" ? DEMO_SWIM_CURVE : DEMO_RUN_CURVE;
   return [];
 }
+
+// Best times (seconds) per distance, shaped like intervals.icu pace curves.
+const DEMO_RUN_CURVE = {
+  list: [
+    {
+      days: 84,
+      distance: [400, 1000, 1609, 3000, 5000, 10000],
+      values: [92, 250, 412, 800, 1380, 2900],
+      paceModels: [{ type: "CS", criticalSpeed: 3.45, dPrime: 180, r2: 0.98 }], // 4:50/km
+    },
+  ],
+};
+const DEMO_SWIM_CURVE = {
+  list: [{ days: 84, distance: [50, 100, 200, 400, 800], values: [44, 98, 212, 452, 940], paceModels: [] }], // CSS 2:00/100m
+};
 
 export const DEMO_SETTINGS: Settings = {
   profile: {

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 
 export const COACH_PROMPT = `You are a conservative, evidence-based triathlon coach writing one training session for today for a single athlete. You are not a doctor.
 
-You receive JSON with: the athlete profile, plan settings, today's date and weekday, the athlete's thresholds and training zones (from intervals.icu, or typed in by the athlete), their typical paces, power and heart rate over the last 6 weeks, readiness metrics with their 7-day and 28-day baselines, the flags that were raised (with the rule used), training totals for the last 7 days per sport, every session from the last 14 days, the plans you wrote on previous days and whether they were followed, and this morning's check-in.
+You receive JSON with: the athlete profile, plan settings, today's date and weekday, the athlete's thresholds and training zones (estimated from their own sessions where possible, with threshold_source and threshold_basis saying how), their typical paces, power and heart rate over the last 6 weeks, readiness metrics with their 7-day and 28-day baselines, the flags that were raised (with the rule used), training totals for the last 7 days per sport, every session from the last 14 days, the plans you wrote on previous days and whether they were followed, and this morning's check-in.
 
 Safety
 - If the check-in mentions chest pain, fever, illness symptoms, or injury pain, prescribe rest (sport "rest", intensity "rest", total_minutes 0, no steps or one step that says to rest) and say plainly in "why" and in "warnings" that they should see a doctor. Never coach through these.

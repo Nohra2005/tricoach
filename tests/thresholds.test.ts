@@ -45,14 +45,13 @@ describe("buildThresholds", () => {
     expect(t.notes).toEqual([]);
   });
 
-  it("lets values typed in Settings override intervals.icu, and says so", () => {
+  it("with no estimates, prefers values typed in TriCoach Settings over intervals.icu", () => {
     const t = buildThresholds(athlete, { ...plan, ftp_watts: 210, threshold_run_pace: "5:00/km", swim_css: "2:10" });
     expect(t.bike.threshold).toBe("FTP 210 W");
     expect(t.bike.threshold_source).toBe("settings");
     expect(t.bike.work_zones[1]).toContain("(116 to 158 W)");
     expect(t.run.threshold).toBe("5:00/km");
     expect(t.swim.threshold).toBe("2:10/100m");
-    expect(t.notes[0]).toContain("intervals.icu has 200 W");
   });
 
   it("ignores an implausible threshold pace instead of guessing units", () => {

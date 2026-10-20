@@ -84,7 +84,7 @@ export function SettingsScreen({ onSignOut, demo = false }: { onSignOut: () => v
                 inputMode="numeric"
                 value={s.plan.ftp_watts ?? ""}
                 onChange={(e) => plan("ftp_watts", e.target.value ? Number(e.target.value) : null)}
-                placeholder="Leave empty to use intervals.icu"
+                placeholder="Only used until it is estimated from your rides"
               />
             </label>
             <label className="field">
@@ -92,7 +92,7 @@ export function SettingsScreen({ onSignOut, demo = false }: { onSignOut: () => v
               <input
                 value={s.plan.threshold_run_pace}
                 onChange={(e) => plan("threshold_run_pace", e.target.value)}
-                placeholder="Empty = intervals.icu. For example: 5:10/km"
+                placeholder="Only used until estimated from your runs, e.g. 5:10/km"
               />
             </label>
             <label className="field">
@@ -100,7 +100,7 @@ export function SettingsScreen({ onSignOut, demo = false }: { onSignOut: () => v
               <input
                 value={s.plan.swim_css}
                 onChange={(e) => plan("swim_css", e.target.value)}
-                placeholder="Empty = intervals.icu. For example: 2:05/100m"
+                placeholder="Only used until estimated from your swims, e.g. 2:05/100m"
               />
             </label>
             <label className="field">

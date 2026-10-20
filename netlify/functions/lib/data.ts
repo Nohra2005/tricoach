@@ -1,6 +1,7 @@
 // Loads intervals.icu data for a day and turns it into Metrics.
 import type { DayRecord, Metrics, Settings } from "../../../shared/schemas";
-import { getActivities, getAthlete, getWellness, summarise, type Athlete } from "./intervals";
+import { getActivities, getAthlete, getPaceCurve, getWellness, summarise, type Athlete } from "./intervals";
+import { ESTIMATE_DAYS, eftpFromWellness, runThreshold, swimCss } from "./estimates";
 import { computeMetrics } from "./metrics";
 import { buildThresholds, typicalValues } from "./thresholds";
 import { addDays } from "./dates";
@@ -11,7 +12,7 @@ export const ACTIVITY_DAYS = 14; // shown on Today and sent session by session
 export const TYPICAL_DAYS = 42; // used for typical paces and power
 
 export async function loadMetrics(date: string, settingsIn?: Settings): Promise<Metrics> {
-  const [wellness, acts, athlete, settings] = await Promise.all([
+  const [wellness, acts, athlete, settings, runCurve, swimCurve] = await Promise.all([
     getWellness(addDays(date, -(WELLNESS_DAYS - 1)), date),
     getActivities(addDays(date, -(TYPICAL_DAYS - 1)), date),
     // Sport settings are a nice-to-have: if this call fails, Today still loads.
@@ -20,13 +21,21 @@ export async function loadMetrics(date: string, settingsIn?: Settings): Promise<
       return null;
     }),
     settingsIn ?? getSettings(),
+    // Pace curves feed the threshold estimates; also optional.
+    getPaceCurve("Run", date, ESTIMATE_DAYS),
+    getPaceCurve("Swim", date, ESTIMATE_DAYS),
   ]);
+  const estimates = {
+    ftp: eftpFromWellness(wellness, date),
+    run: runThreshold(runCurve),
+    swim: swimCss(swimCurve),
+  };
   const all = acts.activities.map(summarise);
   const from14 = addDays(date, -(ACTIVITY_DAYS - 1));
   const metrics = computeMetrics(date, wellness, all.filter((a) => a.date >= from14), acts.hidden);
   return {
     ...metrics,
-    thresholds: buildThresholds(athlete, settings.plan),
+    thresholds: buildThresholds(athlete, settings.plan, estimates),
     typical: typicalValues(all, date, TYPICAL_DAYS),
   };
 }

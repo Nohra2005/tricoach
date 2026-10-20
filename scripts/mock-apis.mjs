@@ -27,7 +27,7 @@ function day(offset) {
 function wellness() {
   return Array.from({ length: 42 }, (_, i) => {
     const off = i - 41;
-    const row = { id: day(off), ctl: 55 + i * 0.1, atl: 60 + (i % 5), restingHR: 48 + (i % 3), weight: 58 };
+    const row = { id: day(off), ctl: 55 + i * 0.1, atl: 60 + (i % 5), restingHR: 48 + (i % 3), weight: 58, sportInfo: [{ type: "Ride", eftp: 196 }] };
     if (i % 7 !== 3) row.hrv = off === 0 ? 38 : 55 + ((i * 7) % 9) - 4; // today low, some days missing
     if (i % 6 !== 2) row.sleepSecs = (7 + (i % 3) * 0.4) * 3600;
     if (off === 0 && process.env.MOCK_NO_TODAY) {
@@ -113,6 +113,12 @@ createServer(async (req, res) => {
     if (!req.headers.authorization?.startsWith("Basic ")) return send(res, 401, { error: "no auth" });
     if (url.pathname.endsWith("/wellness")) return send(res, 200, wellness());
     if (url.pathname.endsWith("/activities")) return send(res, 200, activities());
+    if (url.pathname.endsWith("/pace-curves")) {
+      // Run: critical speed 3.448 m/s (4:50/km). Swim: best 200 m 3:32, 400 m 7:32 (CSS 2:00/100m).
+      return send(res, 200, url.searchParams.get("type") === "Swim"
+        ? { list: [{ distance: [100, 200, 400], values: [98, 212, 452], paceModels: [] }] }
+        : { list: [{ distance: [1000, 5000], values: [250, 1375], paceModels: [{ type: "CS", criticalSpeed: 3.448, r2: 0.97 }] }] });
+    }
     if (/\/athlete\/[^/]+$/.test(url.pathname)) return send(res, 200, athlete);
     if (url.pathname.endsWith("/events") && req.method === "POST") {
       const ev = JSON.parse(body);

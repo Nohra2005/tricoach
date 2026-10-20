@@ -12,6 +12,7 @@ import type { ActivitySummary } from "../../../shared/schemas";
 import { HttpError } from "./http";
 import { currentUser } from "./users";
 import { demoApi } from "./demo";
+import { PaceCurveSet } from "./estimates";
 import { addDays } from "./dates";
 
 // INTERVALS_BASE_URL is only for local testing against scripts/mock-apis.mjs.
@@ -207,6 +208,26 @@ export async function upsertWorkout(w: PlannedWorkout) {
 // GET /athlete/{id}/events/{eventId} : used to read back workout_doc after a create.
 export async function getEvent(id: string) {
   return EventResponse.parse(await get(`/events/${encodeURIComponent(id)}`));
+}
+
+// GET /athlete/{id}/pace-curves?type=Run&newest=YYYY-MM-DD&curves=84d : best time per
+// distance over a window, plus intervals.icu's critical speed model. If the window format
+// is not accepted, falls back to the default curve (the last year).
+export async function getPaceCurve(type: "Run" | "Swim", date: string, days: number): Promise<PaceCurveSet | null> {
+  const params = { type, newest: date, now: date };
+  try {
+    const set = PaceCurveSet.parse(await get("/pace-curves", { ...params, curves: `${days}d` }));
+    if (set.list.length) return set;
+  } catch (e) {
+    console.warn(`pace curve with curves=${days}d failed`, e);
+  }
+  try {
+    const set = PaceCurveSet.parse(await get("/pace-curves", params));
+    return set.list.length ? set : null;
+  } catch (e) {
+    console.warn("pace curve failed", e);
+    return null;
+  }
 }
 
 export async function getAthlete() {

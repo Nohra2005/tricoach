@@ -154,7 +154,9 @@ export type ActivitySummary = z.infer<typeof ActivitySummary>;
 
 const SportThresholds = z.object({
   threshold: z.string().nullable(), // "FTP 210 W", "4:45/km", "2:05/100m"
-  threshold_source: z.enum(["settings", "intervals.icu"]).nullable(),
+  // estimate (from the athlete's sessions) wins; settings and intervals.icu are fallbacks
+  threshold_source: z.enum(["estimate", "settings", "intervals.icu"]).nullable(),
+  threshold_basis: z.string().nullable().optional(), // how the estimate was made
   indoor_ftp: z.number().nullable(),
   lthr: z.number().nullable(),
   max_hr: z.number().nullable(),

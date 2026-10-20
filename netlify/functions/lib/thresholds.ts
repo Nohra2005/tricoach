@@ -3,6 +3,7 @@
 // last 6 weeks of sessions. Pure functions, no network.
 import type { ActivitySummary, Settings, Thresholds, Typical } from "../../../shared/schemas";
 import type { Athlete, SportSettings } from "./intervals";
+import type { Estimates } from "./estimates";
 
 type Sport = "swim" | "bike" | "run";
 const TYPES: Record<Sport, string[]> = {
@@ -78,20 +79,25 @@ function speedToSecs(sport: "swim" | "run", speed: number | null): number | null
   return PER[sport].metres / speed;
 }
 
-export function buildThresholds(athlete: Athlete | null, plan: Settings["plan"]): Thresholds {
+// Priority: an estimate from the athlete's own sessions, then a value typed into TriCoach
+// Settings, then the value in intervals.icu settings.
+export function buildThresholds(athlete: Athlete | null, plan: Settings["plan"], est: Estimates | null = null): Thresholds {
   const notes: string[] = [];
   const out = {} as Thresholds;
 
   // Bike: FTP
   const bs = settingsFor(athlete, "bike");
   const icuFtp = bs?.ftp ?? null;
-  const ftp = plan.ftp_watts ?? icuFtp;
-  if (plan.ftp_watts && icuFtp && plan.ftp_watts !== icuFtp) {
-    notes.push(`FTP ${plan.ftp_watts} W from TriCoach settings (intervals.icu has ${icuFtp} W).`);
+  const estFtp = est?.ftp ?? null;
+  const ftp = estFtp?.value ?? plan.ftp_watts ?? icuFtp;
+  const manualFtp = plan.ftp_watts ?? icuFtp;
+  if (estFtp && manualFtp && Math.abs(estFtp.value - manualFtp) >= 5) {
+    notes.push(`Using estimated FTP ${estFtp.value} W instead of the ${manualFtp} W typed in ${plan.ftp_watts ? "TriCoach" : "intervals.icu"} settings.`);
   }
   out.bike = {
     threshold: ftp ? `FTP ${ftp} W` : null,
-    threshold_source: plan.ftp_watts ? "settings" : icuFtp ? "intervals.icu" : null,
+    threshold_source: estFtp ? "estimate" : plan.ftp_watts ? "settings" : icuFtp ? "intervals.icu" : null,
+    threshold_basis: estFtp?.basis ?? null,
     indoor_ftp: bs?.indoor_ftp ?? null,
     lthr: bs?.lthr ?? null,
     max_hr: bs?.max_hr ?? null,
@@ -108,10 +114,18 @@ export function buildThresholds(athlete: Athlete | null, plan: Settings["plan"])
     }
     const typed = sport === "swim" ? plan.swim_css : plan.threshold_run_pace;
     const typedSecs = typed ? parsePace(typed) : null;
-    const secs = typedSecs ?? icuSecs;
+    const estimate = est?.[sport] ?? null;
+    const secs = estimate?.value ?? typedSecs ?? icuSecs;
+    const manual = typedSecs ?? icuSecs;
+    if (estimate && manual && Math.abs(estimate.value - manual) >= 3) {
+      notes.push(
+        `Using estimated ${sport} threshold ${fmtSecs(estimate.value)}${PER[sport].unit} instead of the ${fmtSecs(manual)}${PER[sport].unit} typed in ${typedSecs ? "TriCoach" : "intervals.icu"} settings.`,
+      );
+    }
     out[sport] = {
       threshold: secs ? `${fmtSecs(secs)}${PER[sport].unit}` : null,
-      threshold_source: typedSecs ? "settings" : icuSecs ? "intervals.icu" : null,
+      threshold_source: estimate ? "estimate" : typedSecs ? "settings" : icuSecs ? "intervals.icu" : null,
+      threshold_basis: estimate?.basis ?? null,
       indoor_ftp: null,
       lthr: s?.lthr ?? null,
       max_hr: s?.max_hr ?? null,

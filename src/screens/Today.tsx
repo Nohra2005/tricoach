@@ -198,7 +198,11 @@ function YourNumbers({ m }: { m: Metrics }) {
                 </span>
               </div>
               <div className="small muted" style={{ marginTop: 6 }}>
-                {s?.threshold_source ? `Threshold from ${s.threshold_source}. ` : ""}
+                {s?.threshold_source === "estimate"
+                  ? `Estimated from ${s.threshold_basis ?? "your sessions"}. `
+                  : s?.threshold_source
+                    ? `Typed in ${s.threshold_source === "settings" ? "TriCoach" : "intervals.icu"} settings (no estimate yet). `
+                    : ""}
                 {typ && typ.sessions > 0
                   ? `Last ${ty!.days} days: ${typ.sessions} sessions${typ.median_pace ? `, typical ${typ.median_pace}` : ""}${
                       typ.median_avg_watts !== null ? `, typical ${typ.median_avg_watts} W` : ""
@@ -246,7 +250,9 @@ function YourNumbers({ m }: { m: Metrics }) {
           </details>
         );
       })}
-      <p className="small muted">Values typed in Settings override intervals.icu.</p>
+      <p className="small muted">
+        Estimates from your own sessions come first. Typed values are only used until there is an estimate.
+      </p>
       {t?.notes.map((n) => (
         <p key={n} className="small muted">
           {n}
