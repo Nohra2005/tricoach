@@ -13,45 +13,85 @@ import { load, remove, save } from "./storage";
 
 const PASSCODE_KEY = "passcode";
 const DEMO_KEY = "demo";
+const STORAGE_PREFIX = "tricoach."; // as in storage.ts
+
+// Who this tab is signed in as. It is read from localStorage once, when the tab opens,
+// and changes only through the functions below. Requests never re-read localStorage, so
+// starting the demo or signing in in another tab can't switch this tab's account while
+// it still shows the old one. When another tab does change it, this tab reloads.
+type Credential = { kind: "passcode"; passcode: string } | { kind: "demo"; id: string } | null;
+
+function readCredential(): Credential {
+  const demo = load<string>(DEMO_KEY);
+  if (demo) return { kind: "demo", id: demo };
+  const passcode = load<string>(PASSCODE_KEY);
+  return passcode ? { kind: "passcode", passcode } : null;
+}
+
+let credential: Credential = readCredential();
+
+function sameCredential(a: Credential, b: Credential): boolean {
+  if (a === null || b === null) return a === b;
+  if (a.kind === "demo" && b.kind === "demo") return a.id === b.id;
+  if (a.kind === "passcode" && b.kind === "passcode") return a.passcode === b.passcode;
+  return false;
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key !== null && e.key !== STORAGE_PREFIX + PASSCODE_KEY && e.key !== STORAGE_PREFIX + DEMO_KEY) return;
+    if (!sameCredential(readCredential(), credential)) window.location.reload();
+  });
+}
+
+// The offline copy of Today belongs to whoever saved it; drop it when the account changes.
+function switchTo(next: Credential) {
+  if (!sameCredential(next, credential)) remove("lastToday");
+  credential = next;
+}
 
 export function getPasscode(): string | null {
-  return load<string>(PASSCODE_KEY);
+  return credential?.kind === "passcode" ? credential.passcode : null;
 }
 export function setPasscode(p: string) {
   remove(DEMO_KEY);
   save(PASSCODE_KEY, p);
+  switchTo({ kind: "passcode", passcode: p });
 }
 // Signs out of both a real account and the demo.
 export function clearPasscode() {
   remove(PASSCODE_KEY);
   remove(DEMO_KEY);
+  switchTo(null);
 }
 
 export function getDemoId(): string | null {
-  return load<string>(DEMO_KEY);
+  return credential?.kind === "demo" ? credential.id : null;
 }
 export function isDemoMode(): boolean {
-  return getDemoId() !== null;
+  return credential?.kind === "demo";
 }
 // Each demo visitor gets a private sandbox, kept on this device.
 export function startDemo(): string {
-  const existing = getDemoId();
-  if (existing) return existing;
+  const existing = getDemoId() ?? load<string>(DEMO_KEY);
   const id =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
+    existing ??
+    (typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
           (Number(c) ^ (Math.random() * 16) >> (Number(c) / 4)).toString(16),
-        );
+        ));
   remove(PASSCODE_KEY);
   save(DEMO_KEY, id);
+  switchTo({ kind: "demo", id });
   return id;
 }
 
-function authHeaders(passcode: string | null): Record<string, string> {
-  const demo = getDemoId();
-  if (demo && passcode === getPasscode()) return { "x-tricoach-demo": demo };
-  return { "x-tricoach-passcode": passcode ?? "" };
+// An explicit passcode (checking one at sign-in) wins; otherwise this tab's credential.
+function authHeaders(passcode?: string): Record<string, string> {
+  if (passcode !== undefined) return { "x-tricoach-passcode": passcode };
+  if (credential?.kind === "demo") return { "x-tricoach-demo": credential.id };
+  return { "x-tricoach-passcode": credential?.passcode ?? "" };
 }
 
 export class ApiError extends Error {
@@ -63,7 +103,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path: string, init: RequestInit = {}, passcode = getPasscode()): Promise<Response> {
+async function request(path: string, init: RequestInit = {}, passcode?: string): Promise<Response> {
   let res: Response;
   try {
     res = await fetch(path, {
