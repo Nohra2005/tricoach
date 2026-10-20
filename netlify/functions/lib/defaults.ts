@@ -1,62 +1,61 @@
-// Default athlete profile and plan settings. Edited in the app's Settings screen
-// (stored in Blobs), so changing them does not need a redeploy.
+// Default preferences. Edited in the app's Settings > Preferences screen (stored in
+// Blobs). Only things the athlete chooses live here; anything measurable comes from data.
 import type { Settings } from "../../../shared/schemas";
 
+// Account 1's starting point, from what she described when the project started.
 export const DEFAULT_SETTINGS: Settings = {
-  profile: {
-    name: "Tatiana",
-    history:
-      "Has finished a half Ironman (70.3), an Olympic and a sprint triathlon.",
-    swim:
-      "25 m pool, usually Mon/Wed/Fri, 2 to 3 times per week. Can swim 2000 m continuously. " +
-      "Aerobic pace about 2:10/100m; long-term goal 1:40/100m. Limiters: breathing and short, rushed strokes. " +
-      "Breathes to one side (after 2 strokes, then after 4) and wants to keep it: do NOT prescribe bilateral breathing drills. " +
-      "Likes intervals, drills, and 1 to 2 main endurance sets.",
-    bike: "Indoor on a Tacx Flux S smart trainer with MyWhoosh; also rides outdoors.",
-    run: "Fixed group run Thursdays 17:00 (5 to 10 km, picks the pace group); treat it as a set session.",
-    life: "University student, so time on weekdays is limited.",
-    other_notes: "",
+  version: 2,
+  name: "Tatiana",
+  races: [],
+  schedule: {
+    Monday: { minutes: 60, usual: "pool" },
+    Tuesday: { minutes: 60, usual: "indoor_trainer" },
+    Wednesday: { minutes: 60, usual: "pool" },
+    Thursday: { minutes: 75, usual: "run" },
+    Friday: { minutes: 60, usual: "pool" },
+    Saturday: { minutes: 120, usual: "outdoor_bike" },
+    Sunday: { minutes: 90, usual: "run" },
   },
-  plan: {
-    goal_race: "",
-    goal_race_date: "",
-    ftp_watts: null,
-    threshold_run_pace: "",
-    swim_css: "",
-    max_hard_per_week: 2,
-    usual_swim_days: ["Monday", "Wednesday", "Friday"],
-    set_sessions: [
-      {
-        weekday: "Thursday",
-        time: "17:00",
-        sport: "run",
-        description: "Group run, 5 to 10 km, athlete picks the pace group",
-      },
-    ],
-    focus: "",
-  },
+  fixed_sessions: [{ weekday: "Thursday", time: "17:00", sport: "run", description: "Group run, 5 to 10 km, picks the pace group" }],
+  this_week: null,
+  finished: ["sprint", "olympic", "70.3"],
+  equipment: { smart_trainer: true, outdoor_power_meter: false, chest_hr_strap: false },
+  long_ride_day: null,
+  long_run_day: null,
+  max_sessions: { swim: 3, bike: null, run: null },
+  strength: false,
+  max_hard_per_week: 2,
+  phase: "base",
+  one_sided_breathing: true,
+  returning_from_injury: false,
+  coach_note: "Swim limiters: breathing and short, rushed strokes. Long-term swim goal 1:40/100m. University student, so weekday time is limited.",
 };
 
-// Starting point for any account other than the first: fill it in on the Settings screen.
+// Starting point for any other account: fill it in on the Preferences screen.
 export const BLANK_SETTINGS: Settings = {
-  profile: {
-    name: "",
-    history: "",
-    swim: "",
-    bike: "",
-    run: "",
-    life: "",
-    other_notes: "",
+  version: 2,
+  name: "",
+  races: [],
+  schedule: {
+    Monday: { minutes: 60, usual: null },
+    Tuesday: { minutes: 60, usual: null },
+    Wednesday: { minutes: 60, usual: null },
+    Thursday: { minutes: 60, usual: null },
+    Friday: { minutes: 0, usual: null },
+    Saturday: { minutes: 90, usual: null },
+    Sunday: { minutes: 90, usual: null },
   },
-  plan: {
-    goal_race: "",
-    goal_race_date: "",
-    ftp_watts: null,
-    threshold_run_pace: "",
-    swim_css: "",
-    max_hard_per_week: 2,
-    usual_swim_days: [],
-    set_sessions: [],
-    focus: "",
-  },
+  fixed_sessions: [],
+  this_week: null,
+  finished: [],
+  equipment: { smart_trainer: false, outdoor_power_meter: false, chest_hr_strap: false },
+  long_ride_day: null,
+  long_run_day: null,
+  max_sessions: { swim: null, bike: null, run: null },
+  strength: false,
+  max_hard_per_week: 2,
+  phase: "base",
+  one_sided_breathing: false,
+  returning_from_injury: false,
+  coach_note: "",
 };

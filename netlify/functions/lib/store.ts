@@ -10,6 +10,7 @@ import { DayRecord, Job, Settings } from "../../../shared/schemas";
 import { BLANK_SETTINGS, DEFAULT_SETTINGS } from "./defaults";
 import { DEMO_SETTINGS } from "./demo";
 import { weekday } from "./dates";
+import { migrateSettings } from "./settings-migrate";
 import { currentUser } from "./users";
 
 function store() {
@@ -27,13 +28,13 @@ export function now(): string {
 function defaultSettings(): Settings {
   const u = currentUser();
   if (u.kind === "demo") return DEMO_SETTINGS;
-  return u.id === "u1" ? DEFAULT_SETTINGS : { ...BLANK_SETTINGS, profile: { ...BLANK_SETTINGS.profile, name: u.name } };
+  return u.id === "u1" ? DEFAULT_SETTINGS : { ...BLANK_SETTINGS, name: u.name };
 }
 
 export async function getSettings(): Promise<Settings> {
   const data = await store().get(key("settings.json"), { type: "json" });
-  const parsed = Settings.safeParse(data);
-  return parsed.success ? parsed.data : defaultSettings();
+  // Older free-text profiles are converted to structured preferences on read.
+  return data === null ? defaultSettings() : migrateSettings(data, defaultSettings());
 }
 
 export async function putSettings(s: Settings): Promise<void> {
@@ -100,4 +101,20 @@ export async function demoUsageToday(date: string): Promise<number> {
 export async function addDemoUsage(date: string): Promise<void> {
   const count = await demoUsageToday(date);
   await store().setJSON(`demo-usage/${date}.json`, { count: count + 1 });
+}
+
+// Deletes this account's own records: days, jobs and preferences. Only those prefixes,
+// so account 1 (prefix "") can never touch another account's or the demo's data.
+export async function deleteMyData(): Promise<number> {
+  const s = store();
+  let n = 0;
+  for (const p of ["days/", "jobs/"]) {
+    const { blobs } = await s.list({ prefix: key(p) });
+    for (const b of blobs) {
+      await s.delete(b.key);
+      n++;
+    }
+  }
+  await s.delete(key("settings.json"));
+  return n;
 }

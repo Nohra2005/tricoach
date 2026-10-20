@@ -55,6 +55,7 @@ export const ActivitySchema = z.looseObject({
   icu_training_load: num,
   icu_intensity: num,
   average_heartrate: num,
+  max_heartrate: num,
   icu_average_watts: num,
   icu_weighted_avg_watts: num,
   trainer: bool,
@@ -230,6 +231,22 @@ export async function getPaceCurve(type: "Run" | "Swim", date: string, days: num
   }
 }
 
+// Max HR of every session in the last year, for heart rate zones from data. Asks only
+// for the fields it needs; falls back to full records if that parameter is refused.
+export async function getMaxHeartRates(date: string): Promise<number[]> {
+  const params = { oldest: addDays(date, -365), newest: addDays(date, 1) };
+  let data: unknown;
+  try {
+    data = await get("/activities", { ...params, fields: "id,start_date_local,type,max_heartrate" });
+  } catch {
+    data = await get("/activities", params);
+  }
+  const rows = Array.isArray(data) ? data : [];
+  return rows
+    .map((r) => (r && typeof r === "object" ? (r as { max_heartrate?: unknown }).max_heartrate : null))
+    .filter((v): v is number => typeof v === "number");
+}
+
 export async function getAthlete() {
   return AthleteSchema.parse(await get(""));
 }
@@ -314,5 +331,7 @@ export function summarise(a: Activity): ActivitySummary {
     trainer: a.trainer,
     rpe,
     hard: (a.icu_intensity ?? 0) >= 85 || (rpe ?? 0) >= 8,
+    max_hr: a.max_heartrate,
+    pool_length: sport === "swim" ? a.pool_length : null,
   };
 }

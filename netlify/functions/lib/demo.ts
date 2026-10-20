@@ -67,6 +67,7 @@ export function demoActivities(oldest: string, newest: string, today: string) {
       icu_training_load: round(s.load * f),
       icu_intensity: round(s.intensity + (r() - 0.5) * 4, 1),
       average_heartrate: round(135 + (s.intensity - 70) * 1.5 + r() * 6),
+      max_heartrate: round(165 + (s.intensity - 70) * 1.2 + r() * 8),
       icu_average_watts: s.watts ? round(s.watts * f) : null,
       trainer: s.trainer ?? false,
       pool_length: s.type === "Swim" ? 25 : null,
@@ -128,27 +129,35 @@ const DEMO_SWIM_CURVE = {
   list: [{ days: 84, distance: [50, 100, 200, 400, 800], values: [44, 98, 212, 452, 940], paceModels: [] }], // CSS 2:00/100m
 };
 
+// The demo race is always about 20 weeks away, so the demo stays in base phase.
+const demoRaceDate = new Date(Date.now() + 140 * 86_400_000).toISOString().slice(0, 10);
+
 export const DEMO_SETTINGS: Settings = {
-  profile: {
-    name: "Demo athlete",
-    history: "Has finished an Olympic distance and a half Ironman (70.3).",
-    swim: "25 m pool, 2 to 3 times a week. Comfortable aerobic pace about 2:10/100m. Working on a longer, calmer stroke.",
-    bike: "Indoor smart trainer on weekdays, long outdoor ride on Saturdays.",
-    run: "Group run on Thursdays; long easy run on Sundays. Easy pace about 6:00/km.",
-    life: "Works full time, so weekday sessions are 45 to 75 minutes.",
-    other_notes: "This is a made-up athlete for the TriCoach demo.",
+  version: 2,
+  name: "Demo athlete",
+  races: [{ priority: "A", name: "Demo 70.3", date: demoRaceDate, distance: "70.3" }],
+  schedule: {
+    Monday: { minutes: 60, usual: "pool" },
+    Tuesday: { minutes: 60, usual: "indoor_trainer" },
+    Wednesday: { minutes: 45, usual: "pool" },
+    Thursday: { minutes: 60, usual: "run" },
+    Friday: { minutes: 0, usual: null },
+    Saturday: { minutes: 150, usual: "outdoor_bike" },
+    Sunday: { minutes: 90, usual: "run" },
   },
-  plan: {
-    goal_race: "Demo 70.3",
-    goal_race_date: "",
-    ftp_watts: null,
-    threshold_run_pace: "",
-    swim_css: "",
-    max_hard_per_week: 2,
-    usual_swim_days: ["Monday", "Wednesday"],
-    set_sessions: [{ weekday: "Thursday", time: "18:00", sport: "run", description: "Group run, 8 to 10 km" }],
-    focus: "Aerobic base",
-  },
+  fixed_sessions: [{ weekday: "Thursday", time: "18:00", sport: "run", description: "Group run, 8 to 10 km" }],
+  this_week: null,
+  finished: ["olympic", "70.3"],
+  equipment: { smart_trainer: true, outdoor_power_meter: false, chest_hr_strap: true },
+  long_ride_day: "Saturday",
+  long_run_day: "Sunday",
+  max_sessions: { swim: 3, bike: 3, run: 3 },
+  strength: false,
+  max_hard_per_week: 2,
+  phase: "base",
+  one_sided_breathing: false,
+  returning_from_injury: false,
+  coach_note: "This is a made-up athlete for the TriCoach demo.",
 };
 
 // Used when the demo's daily limit for live AI sessions is reached: a fixed template that

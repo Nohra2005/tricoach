@@ -1,18 +1,18 @@
 // Loads intervals.icu data for a day and turns it into Metrics.
-import type { DayRecord, Metrics, Settings } from "../../../shared/schemas";
-import { getActivities, getAthlete, getPaceCurve, getWellness, summarise, type Athlete } from "./intervals";
+import type { DayRecord, Metrics } from "../../../shared/schemas";
+import { getActivities, getAthlete, getMaxHeartRates, getPaceCurve, getWellness, summarise, type Athlete } from "./intervals";
 import { ESTIMATE_DAYS, eftpFromWellness, runThreshold, swimCss } from "./estimates";
 import { computeMetrics } from "./metrics";
-import { buildThresholds, typicalValues } from "./thresholds";
+import { buildThresholds, measuredMaxHr, typicalValues } from "./thresholds";
 import { addDays } from "./dates";
-import { getSettings } from "./store";
 
 export const WELLNESS_DAYS = 42;
 export const ACTIVITY_DAYS = 14; // shown on Today and sent session by session
 export const TYPICAL_DAYS = 42; // used for typical paces and power
 
-export async function loadMetrics(date: string, settingsIn?: Settings): Promise<Metrics> {
-  const [wellness, acts, athlete, settings, runCurve, swimCurve] = await Promise.all([
+// Settings are not needed here any more: every number comes from the data.
+export async function loadMetrics(date: string): Promise<Metrics> {
+  const [wellness, acts, athlete, runCurve, swimCurve, maxHrs] = await Promise.all([
     getWellness(addDays(date, -(WELLNESS_DAYS - 1)), date),
     getActivities(addDays(date, -(TYPICAL_DAYS - 1)), date),
     // Sport settings are a nice-to-have: if this call fails, Today still loads.
@@ -20,11 +20,13 @@ export async function loadMetrics(date: string, settingsIn?: Settings): Promise<
       console.warn("Could not read intervals.icu sport settings", e);
       return null;
     }),
-    settingsIn ?? getSettings(),
     // Pace curves feed the threshold estimates; also optional.
     getPaceCurve("Run", date, ESTIMATE_DAYS),
     getPaceCurve("Swim", date, ESTIMATE_DAYS),
+    getMaxHeartRates(date).catch(() => [] as number[]),
   ]);
+  const maxHrValue = measuredMaxHr(maxHrs);
+  const maxHr = maxHrValue ? { value: maxHrValue, basis: "highest reliable max HR in your sessions over the last 12 months" } : null;
   const estimates = {
     ftp: eftpFromWellness(wellness, date),
     run: runThreshold(runCurve),
@@ -35,7 +37,9 @@ export async function loadMetrics(date: string, settingsIn?: Settings): Promise<
   const metrics = computeMetrics(date, wellness, all.filter((a) => a.date >= from14), acts.hidden);
   return {
     ...metrics,
-    thresholds: buildThresholds(athlete, settings.plan, estimates),
+    thresholds: buildThresholds(athlete, estimates, maxHr),
+    trend: wellness.map((w) => ({ date: w.id, ctl: w.ctl, atl: w.atl })),
+    last_pool_length: all.find((a) => a.sport === "swim" && a.pool_length)?.pool_length ?? null,
     typical: typicalValues(all, date, TYPICAL_DAYS),
   };
 }

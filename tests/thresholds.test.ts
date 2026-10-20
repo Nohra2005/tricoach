@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { AthleteSchema, WellnessSchema } from "../netlify/functions/lib/intervals";
-import { buildThresholds, parsePace, typicalValues } from "../netlify/functions/lib/thresholds";
+import { buildThresholds, measuredMaxHr, parsePace, typicalValues } from "../netlify/functions/lib/thresholds";
 import { latestValue } from "../netlify/functions/lib/metrics";
-import type { ActivitySummary, Settings } from "../shared/schemas";
-import { DEFAULT_SETTINGS } from "../netlify/functions/lib/defaults";
+import type { ActivitySummary } from "../shared/schemas";
 
 const athlete = AthleteSchema.parse({
   id: "i1",
@@ -27,45 +26,61 @@ const athlete = AthleteSchema.parse({
   ],
 });
 
-const plan: Settings["plan"] = { ...DEFAULT_SETTINGS.plan };
+const est = {
+  ftp: { value: 205, basis: "eFTP" },
+  run: { value: 290, basis: "critical speed" },
+  swim: { value: 120, basis: "CSS" },
+};
 
-describe("buildThresholds", () => {
-  it("reads FTP, zones and threshold paces from intervals.icu", () => {
-    const t = buildThresholds(athlete, plan);
+describe("buildThresholds (data only)", () => {
+  it("uses only estimates from sessions, with zones built on them", () => {
+    const t = buildThresholds(athlete, est, { value: 196, basis: "max HR" });
+    expect(t.bike).toMatchObject({ threshold: "FTP 205 W", threshold_source: "estimate", threshold_basis: "eFTP", missing: null });
+    expect(t.bike.work_zones[1]).toBe("Z2 Endurance: 55 to 75% FTP (113 to 154 W)");
+    expect(t.run.threshold).toBe("4:50/km");
+    expect(t.run.work_zones[0]).toBe("Z1: slower than 6:14/km");
+    expect(t.swim.threshold).toBe("2:00/100m");
+  });
+
+  it("never falls back to values typed in intervals.icu, and says they were not used", () => {
+    const t = buildThresholds(athlete, { ftp: null, run: null, swim: null }, null);
+    expect(t.bike.threshold).toBeNull();
+    expect(t.bike.missing).toContain("ride with power");
+    expect(t.bike.ignored).toBe("Not used: 200 W typed in intervals.icu settings (not measured).");
+    expect(t.run.ignored).toContain("4:45/km");
+    expect(t.swim.ignored).toContain("2:05/100m");
+    expect(t.bike.work_zones).toEqual([]);
+  });
+
+  it("says nothing about a typed value that matches the measured one", () => {
+    const t = buildThresholds(athlete, { ftp: { value: 200, basis: "eFTP" }, run: null, swim: null }, null);
     expect(t.bike.threshold).toBe("FTP 200 W");
-    expect(t.bike.threshold_source).toBe("intervals.icu");
-    expect(t.bike.work_zones[1]).toBe("Z2 Endurance: 55 to 75% FTP (110 to 150 W)");
-    expect(t.bike.work_zones[6]).toBe("Z7 Neuromuscular: above 150% FTP (300 W)");
-    expect(t.bike.hr_zones[0]).toBe("Z1 Recovery: up to 138 bpm");
-    expect(t.bike.hr_zones[1]).toBe("Z2 Aerobic: 139 to 151 bpm");
-    expect(t.run.threshold).toBe("4:45/km");
-    expect(t.run.work_zones[0]).toBe("Z1: slower than 6:08/km");
-    expect(t.swim.threshold).toBe("2:05/100m");
-    expect(t.swim.work_zones[3]).toBe("Z4: faster than 2:05/100m");
-    expect(t.notes).toEqual([]);
+    expect(t.bike.ignored).toBeNull();
   });
 
-  it("with no estimates, prefers values typed in TriCoach Settings over intervals.icu", () => {
-    const t = buildThresholds(athlete, { ...plan, ftp_watts: 210, threshold_run_pace: "5:00/km", swim_css: "2:10" });
-    expect(t.bike.threshold).toBe("FTP 210 W");
-    expect(t.bike.threshold_source).toBe("settings");
-    expect(t.bike.work_zones[1]).toContain("(116 to 158 W)");
-    expect(t.run.threshold).toBe("5:00/km");
-    expect(t.swim.threshold).toBe("2:10/100m");
-  });
-
-  it("ignores an implausible threshold pace instead of guessing units", () => {
-    const odd = AthleteSchema.parse({ id: "i1", sportSettings: [{ types: ["Run"], threshold_pace: 285 }] });
-    const t = buildThresholds(odd, plan);
-    expect(t.run.threshold).toBeNull();
-    expect(t.notes[0]).toContain("Ignored");
+  it("builds heart rate zones from the measured max HR, not intervals.icu settings", () => {
+    const t = buildThresholds(athlete, est, { value: 200, basis: "max HR" });
+    expect(t.heart?.zones[0]).toBe("Z1 Warm-up: 100 to 120 bpm");
+    expect(t.heart?.zones[4]).toBe("Z5 Maximum: 180 to 200 bpm");
+    expect(t.run.hr_zones).toEqual(t.heart?.zones);
+    expect(t.bike.lthr).toBeNull(); // the typed LTHR is not used
   });
 
   it("works with no intervals.icu data at all", () => {
-    const t = buildThresholds(null, plan);
+    const t = buildThresholds(null, null, null);
     expect(t.bike.threshold).toBeNull();
+    expect(t.bike.ignored).toBeNull();
     expect(t.run.hr_zones).toEqual([]);
-    expect(t.notes[0]).toContain("Could not read sport settings");
+    expect(t.notes[0]).toContain("heart rate");
+  });
+});
+
+describe("measuredMaxHr", () => {
+  it("ignores a single spike and impossible values", () => {
+    expect(measuredMaxHr([180, 186, 188, 231, 214])).toBe(188); // 214 is a lone spike
+    expect(measuredMaxHr([170, 172])).toBe(172);
+    expect(measuredMaxHr([175])).toBe(175);
+    expect(measuredMaxHr([null, 90])).toBeNull();
   });
 });
 

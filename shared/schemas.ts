@@ -22,6 +22,8 @@ export const CheckIn = z.object({
   locations: z.array(Location).min(1),
   // null means "none"; a string is what the athlete wrote
   pain: z.string().trim().min(1).max(500).nullable(),
+  // Asked when the pool is ticked; pool length varies, so it is not a setting.
+  pool_length: z.union([z.literal(25), z.literal(50)]).nullable().optional(),
 });
 export type CheckIn = z.infer<typeof CheckIn>;
 
@@ -149,14 +151,18 @@ export const ActivitySummary = z.object({
   trainer: z.boolean().nullable(),
   rpe: z.number().nullable(),
   hard: z.boolean(),
+  max_hr: z.number().nullable().optional(),
+  pool_length: z.number().nullable().optional(),
 });
 export type ActivitySummary = z.infer<typeof ActivitySummary>;
 
+// Thresholds come only from the athlete's own sessions. Nothing typed in is used.
 const SportThresholds = z.object({
-  threshold: z.string().nullable(), // "FTP 210 W", "4:45/km", "2:05/100m"
-  // estimate (from the athlete's sessions) wins; settings and intervals.icu are fallbacks
-  threshold_source: z.enum(["estimate", "settings", "intervals.icu"]).nullable(),
+  threshold: z.string().nullable(), // "FTP 210 W", "4:45/km", "2:05/100m"; null = not enough data
+  threshold_source: z.enum(["estimate", "settings", "intervals.icu"]).nullable(), // older records may say settings/intervals.icu
   threshold_basis: z.string().nullable().optional(), // how the estimate was made
+  missing: z.string().nullable().optional(), // what data is needed when there is no estimate
+  ignored: z.string().nullable().optional(), // a typed value that was deliberately not used
   indoor_ftp: z.number().nullable(),
   lthr: z.number().nullable(),
   max_hr: z.number().nullable(),
@@ -168,6 +174,10 @@ export const Thresholds = z.object({
   bike: SportThresholds,
   run: SportThresholds,
   notes: z.array(z.string()),
+  // Heart rate from the data: highest reliable max HR seen, zones as % of it.
+  heart: z
+    .object({ max_hr: z.number().nullable(), basis: z.string(), zones: z.array(z.string()) })
+    .optional(),
 });
 export type Thresholds = z.infer<typeof Thresholds>;
 
@@ -214,19 +224,75 @@ export const Metrics = z.object({
   latest: Latest.optional(), // most recent value in the last 42 days, for when today has none
   thresholds: Thresholds.nullable().optional(),
   typical: Typical.optional(),
+  trend: z.array(z.object({ date: DateStr, ctl: z.number().nullable(), atl: z.number().nullable() })).optional(),
+  last_pool_length: z.number().nullable().optional(),
 });
 export type Metrics = z.infer<typeof Metrics>;
 
-// ---------- Settings ----------
+// ---------- Settings (preferences) ----------
+// Only what the athlete chooses. Anything that can be measured (paces, FTP, zones,
+// pool length) comes from the data and is not a setting.
+
+export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+export const Weekday = z.enum(WEEKDAYS);
+export type Weekday = z.infer<typeof Weekday>;
 
 export const SetSession = z.object({
-  weekday: z.enum(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-  time: z.string(),
+  weekday: Weekday,
+  time: z.string().max(10),
   sport: z.enum(["swim", "bike", "run", "strength"]),
-  description: z.string(),
+  description: z.string().max(120),
 });
 
+export const RACE_DISTANCES = ["sprint", "olympic", "70.3", "full", "run", "other"] as const;
+export const Race = z.object({
+  priority: z.enum(["A", "B", "C"]),
+  name: z.string().max(80),
+  date: z.string().max(10), // YYYY-MM-DD or "" if not set yet
+  distance: z.enum(RACE_DISTANCES),
+});
+export type Race = z.infer<typeof Race>;
+
+export const DayPlan = z.object({ minutes: z.number().int().min(0).max(600), usual: Location.nullable() });
+const Schedule = z.object({
+  Monday: DayPlan,
+  Tuesday: DayPlan,
+  Wednesday: DayPlan,
+  Thursday: DayPlan,
+  Friday: DayPlan,
+  Saturday: DayPlan,
+  Sunday: DayPlan,
+});
+
+export const PHASES = ["base", "build", "peak", "taper", "recovery", "off_season"] as const;
+const MaxSessions = z.number().int().min(0).max(14).nullable();
+
 export const Settings = z.object({
+  version: z.literal(2),
+  name: z.string().max(60),
+  races: z.array(Race).max(6),
+  schedule: Schedule, // minutes available and usual place, per weekday
+  fixed_sessions: z.array(SetSession).max(7),
+  // A one-week change (travel, no bike) that does not reset the normal week.
+  this_week: z
+    .object({ until: DateStr, note: z.string().max(200), no_sports: z.array(z.enum(["swim", "bike", "run"])) })
+    .nullable(),
+  finished: z.array(z.enum(["sprint", "olympic", "70.3", "full"])),
+  equipment: z.object({ smart_trainer: z.boolean(), outdoor_power_meter: z.boolean(), chest_hr_strap: z.boolean() }),
+  long_ride_day: Weekday.nullable(),
+  long_run_day: Weekday.nullable(),
+  max_sessions: z.object({ swim: MaxSessions, bike: MaxSessions, run: MaxSessions }),
+  strength: z.boolean(),
+  max_hard_per_week: z.number().int().min(0).max(4),
+  phase: z.enum(PHASES),
+  one_sided_breathing: z.boolean(),
+  returning_from_injury: z.boolean(),
+  coach_note: z.string().max(300),
+});
+export type Settings = z.infer<typeof Settings>;
+
+// The free-text profile used before version 2; migrated on read (lib/settings-migrate.ts).
+export const LegacySettings = z.object({
   profile: z.object({
     name: z.string(),
     history: z.string(),
@@ -239,16 +305,13 @@ export const Settings = z.object({
   plan: z.object({
     goal_race: z.string(),
     goal_race_date: z.string(),
-    ftp_watts: z.number().int().positive().nullable(),
-    threshold_run_pace: z.string(),
-    swim_css: z.string(),
     max_hard_per_week: z.number().int().min(0).max(4),
     usual_swim_days: z.array(z.string()),
     set_sessions: z.array(SetSession),
     focus: z.string(),
-  }),
+  }).passthrough(),
 });
-export type Settings = z.infer<typeof Settings>;
+export type LegacySettings = z.infer<typeof LegacySettings>;
 
 // ---------- Day record (the research unit) ----------
 

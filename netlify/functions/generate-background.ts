@@ -54,12 +54,22 @@ export default async (req: Request): Promise<void> => {
     if (!day?.checkin) throw new Error("No check-in for this date");
     const { submitted_at: _, ...checkin } = day.checkin;
     const hard = hardDates(date, metrics, history);
+    const thisWeek = settings.this_week && settings.this_week.until >= date ? settings.this_week : null;
+    const from6 = addDays(date, -6);
+    const sessionsLast6Days = { swim: 0, bike: 0, run: 0 };
+    for (const a of metrics.activities14) {
+      if (a.date >= from6 && a.date < date && a.sport !== "other") sessionsLast6Days[a.sport]++;
+    }
+    const { this_week: _tw, version: _v, ...preferences } = settings;
 
     const input = {
       date,
       weekday: weekday(date),
-      athlete_profile: settings.profile,
-      plan_settings: settings.plan,
+      // What the athlete chose. Every number (thresholds, zones, paces) is in
+      // athlete_thresholds_and_zones and comes from their data.
+      preferences,
+      change_this_week_only: thisWeek,
+      sessions_last_6_days_by_sport: sessionsLast6Days,
       readiness: {
         today: metrics.today,
         baselines_prior_days: metrics.baselines,
@@ -78,7 +88,19 @@ export default async (req: Request): Promise<void> => {
       checkin,
     };
 
-    const ctx = { date, checkin, hardDates: hard, maxHardPerWeek: settings.plan.max_hard_per_week };
+    const ctx = {
+      date,
+      checkin,
+      hardDates: hard,
+      maxHardPerWeek: settings.max_hard_per_week,
+      prefs: {
+        strength: settings.strength,
+        maxSessions: settings.max_sessions,
+        oneSidedBreathing: settings.one_sided_breathing,
+        noSports: thisWeek?.no_sports ?? [],
+        sessionsLast6Days,
+      },
+    };
     let result: GenerateResult;
     let usedSample = false;
     if (isDemo() && !(await demoMayUseAi(date, day.events))) {

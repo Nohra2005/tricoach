@@ -19,6 +19,14 @@ export interface RuleContext {
   checkin: CheckIn;
   hardDates: string[]; // days before today that counted as hard
   maxHardPerWeek: number;
+  // From Settings > Preferences (optional so older callers and tests still work)
+  prefs?: {
+    strength: boolean;
+    maxSessions: { swim: number | null; bike: number | null; run: number | null };
+    oneSidedBreathing: boolean;
+    noSports: ("swim" | "bike" | "run")[]; // "change this week only"
+    sessionsLast6Days: { swim: number; bike: number; run: number };
+  };
 }
 
 export function stepMinutes(plan: Plan): number | null {
@@ -86,6 +94,27 @@ export function checkPlan(plan: Plan, ctx: RuleContext): string[] {
     const hardInWindow = new Set(ctx.hardDates.filter((d) => d >= weekStart && d < ctx.date)).size;
     if (hardInWindow + 1 > ctx.maxHardPerWeek) {
       v.push(`There are already ${hardInWindow} hard days in the last 7 days; the limit is ${ctx.maxHardPerWeek}.`);
+    }
+  }
+
+  const p = ctx.prefs;
+  if (p) {
+    if (plan.sport === "strength" && !p.strength) v.push("The athlete has strength sessions turned off.");
+    const counted = (plan.sport === "brick" ? ["bike", "run"] : [plan.sport]).filter(
+      (x): x is "swim" | "bike" | "run" => x === "swim" || x === "bike" || x === "run",
+    );
+    for (const sp of counted) {
+      if (p.noSports.includes(sp)) v.push(`The athlete can't do ${sp} this week (change this week only).`);
+      const max = p.maxSessions[sp];
+      if (max !== null && p.sessionsLast6Days[sp] + 1 > max) {
+        v.push(`That would be ${p.sessionsLast6Days[sp] + 1} ${sp} sessions in 7 days; the athlete's limit is ${max}.`);
+      }
+    }
+    if (p.oneSidedBreathing && plan.sport === "swim") {
+      const text = [plan.title, plan.why, plan.easier_option, ...plan.warnings, ...plan.steps.flatMap((s) => [s.label, s.target, s.notes ?? ""])].join(" ");
+      if (/bilateral|both sides|every (3|three|5|five) strokes|alternate (breathing|sides)/i.test(text)) {
+        v.push("The athlete keeps one-sided breathing: never ask for bilateral or alternate-side breathing, in any set.");
+      }
     }
   }
 

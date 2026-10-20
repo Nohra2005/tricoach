@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PaceCurveSet, bestTime, eftpFromWellness, runThreshold, swimCss } from "../netlify/functions/lib/estimates";
-import { AthleteSchema, WellnessSchema } from "../netlify/functions/lib/intervals";
-import { buildThresholds } from "../netlify/functions/lib/thresholds";
-import { DEFAULT_SETTINGS } from "../netlify/functions/lib/defaults";
+import { WellnessSchema } from "../netlify/functions/lib/intervals";
 
 const curve = (distance: number[], values: number[], paceModels: unknown[] = []) =>
   PaceCurveSet.parse({ list: [{ distance, values, paceModels }] });
@@ -56,25 +54,3 @@ describe("swim CSS", () => {
   });
 });
 
-describe("priority", () => {
-  const athlete = AthleteSchema.parse({ id: "i1", sportSettings: [{ types: ["Ride"], ftp: 200 }, { types: ["Swim"], threshold_pace: 0.8333 }] });
-
-  it("prefers estimates over intervals.icu and TriCoach settings, and says so", () => {
-    const t = buildThresholds(athlete, { ...DEFAULT_SETTINGS.plan, ftp_watts: 180, threshold_run_pace: "5:20/km" }, {
-      ftp: { value: 215, basis: "eFTP" },
-      run: { value: 290, basis: "critical speed" },
-      swim: { value: 118, basis: "CSS" },
-    });
-    expect(t.bike).toMatchObject({ threshold: "FTP 215 W", threshold_source: "estimate", threshold_basis: "eFTP" });
-    expect(t.run).toMatchObject({ threshold: "4:50/km", threshold_source: "estimate" });
-    expect(t.swim).toMatchObject({ threshold: "1:58/100m", threshold_source: "estimate" });
-    expect(t.notes.join(" ")).toContain("instead of the 180 W typed in TriCoach");
-  });
-
-  it("falls back to typed values only where there is no estimate", () => {
-    const t = buildThresholds(athlete, { ...DEFAULT_SETTINGS.plan, ftp_watts: null }, { ftp: null, run: null, swim: null });
-    expect(t.bike).toMatchObject({ threshold: "FTP 200 W", threshold_source: "intervals.icu" });
-    expect(t.swim).toMatchObject({ threshold: "2:00/100m", threshold_source: "intervals.icu" });
-    expect(t.run.threshold).toBeNull();
-  });
-});

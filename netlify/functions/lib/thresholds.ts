@@ -1,7 +1,8 @@
-// The athlete's own numbers: thresholds and zones from intervals.icu sport settings
-// (overridden by anything filled in on the Settings screen), and typical values from the
-// last 6 weeks of sessions. Pure functions, no network.
-import type { ActivitySummary, Settings, Thresholds, Typical } from "../../../shared/schemas";
+// The athlete's own numbers, from data only: thresholds estimated from their sessions
+// (estimates.ts), heart rate zones from their measured max HR, and typical values from
+// the last 6 weeks. Values typed into intervals.icu settings are never used as numbers;
+// when they exist they are reported as ignored. Pure functions, no network.
+import type { ActivitySummary, Thresholds, Typical } from "../../../shared/schemas";
 import type { Athlete, SportSettings } from "./intervals";
 import type { Estimates } from "./estimates";
 
@@ -15,8 +16,21 @@ const PER: Record<"swim" | "run", { metres: number; unit: string }> = {
   swim: { metres: 100, unit: "/100m" },
   run: { metres: 1000, unit: "/km" },
 };
-// Plausible threshold speeds in m/s; anything outside is ignored rather than guessed at.
-const SPEED_RANGE: Record<"swim" | "run", [number, number]> = { swim: [0.4, 2.5], run: [1.5, 7] };
+
+// Zone models (conventions, not measurements): intervals.icu's own when the athlete has
+// them, else the standard ones. Power: Coggan 7 zones. Run pace: intervals.icu defaults.
+const POWER_ZONES = [55, 75, 90, 105, 120, 150, 999];
+const POWER_NAMES = ["Active Recovery", "Endurance", "Tempo", "Threshold", "VO2 Max", "Anaerobic", "Neuromuscular"];
+const RUN_PACE_ZONES = [77.5, 87.7, 94.3, 100, 103.4, 111.5, 999];
+// Heart rate: % of measured max HR, the 5-zone model Garmin uses by default.
+const HR_ZONES = [50, 60, 70, 80, 90, 100];
+const HR_NAMES = ["Warm-up", "Easy", "Aerobic", "Threshold", "Maximum"];
+
+const MISSING: Record<Sport, string> = {
+  bike: "Needs one ride with power in intervals.icu (smart trainer rides count). Until then bike targets use heart rate.",
+  run: "Needs a few hard efforts in the last 12 weeks, such as a 5 km race or a tempo run. Until then run targets use heart rate.",
+  swim: "Needs a best 200 m and 400 m in the last 12 weeks. Until then swim targets use effort.",
+};
 
 export function fmtSecs(secs: number): string {
   const total = Math.round(secs);
@@ -33,109 +47,96 @@ function settingsFor(athlete: Athlete | null, sport: Sport): SportSettings | nul
   return athlete?.sportSettings.find((s) => s.types.some((t) => TYPES[sport].includes(t))) ?? null;
 }
 
-// "Z2 Endurance", or just "Z2" when intervals.icu has no name for the zone.
+// "Z2 Endurance", or just "Z2" when there is no name for the zone.
 function zoneLabel(i: number, name: string | undefined): string {
   return name ? `Z${i + 1} ${name}` : `Z${i + 1}`;
 }
 
-function hrZones(s: SportSettings | null): string[] {
-  if (!s || s.hr_zones.length === 0) return [];
-  return s.hr_zones.map((upper, i) => {
-    const name = zoneLabel(i, s.hr_zone_names[i]);
-    const from = i === 0 ? null : s.hr_zones[i - 1] + 1;
-    return from === null ? `${name}: up to ${upper} bpm` : `${name}: ${from} to ${upper} bpm`;
-  });
-}
-
-function powerZones(s: SportSettings | null, ftp: number | null): string[] {
-  if (!s || s.power_zones.length === 0) return [];
-  return s.power_zones.map((upper, i) => {
-    const name = zoneLabel(i, s.power_zone_names[i]);
-    const from = i === 0 ? 0 : s.power_zones[i - 1];
-    const w = (pct: number) => (ftp ? ` (${Math.round((pct * ftp) / 100)} W)` : "");
-    if (upper >= 500) return `${name}: above ${from}% FTP${w(from)}`;
-    return `${name}: ${from} to ${upper}% FTP${ftp ? ` (${Math.round((from * ftp) / 100)} to ${Math.round((upper * ftp) / 100)} W)` : ""}`;
+function powerZones(s: SportSettings | null, ftp: number): string[] {
+  const zones = s && s.power_zones.length ? s.power_zones : POWER_ZONES;
+  const names = s && s.power_zones.length ? s.power_zone_names : POWER_NAMES;
+  return zones.map((upper, i) => {
+    const name = zoneLabel(i, names[i]);
+    const from = i === 0 ? 0 : zones[i - 1];
+    if (upper >= 500) return `${name}: above ${from}% FTP (${Math.round((from * ftp) / 100)} W)`;
+    return `${name}: ${from} to ${upper}% FTP (${Math.round((from * ftp) / 100)} to ${Math.round((upper * ftp) / 100)} W)`;
   });
 }
 
 // pace_zones are % of threshold speed; a higher % is faster.
-function paceZones(s: SportSettings | null, sport: "swim" | "run", thresholdSecs: number | null): string[] {
-  if (!s || s.pace_zones.length === 0 || !thresholdSecs) return [];
+function paceZones(s: SportSettings | null, sport: "swim" | "run", thresholdSecs: number): string[] {
+  const zones = s && s.pace_zones.length ? s.pace_zones : sport === "run" ? RUN_PACE_ZONES : [];
+  const names = s && s.pace_zones.length ? s.pace_zone_names : [];
   const { unit } = PER[sport];
   const pace = (pct: number) => fmtSecs(thresholdSecs / (pct / 100));
-  return s.pace_zones.map((upper, i) => {
-    const name = zoneLabel(i, s.pace_zone_names[i]);
-    const from = i === 0 ? 0 : s.pace_zones[i - 1];
+  return zones.map((upper, i) => {
+    const name = zoneLabel(i, names[i]);
+    const from = i === 0 ? 0 : zones[i - 1];
     if (from === 0) return `${name}: slower than ${pace(upper)}${unit}`;
     if (upper >= 500) return `${name}: faster than ${pace(from)}${unit}`;
     return `${name}: ${pace(from)} to ${pace(upper)}${unit}`;
   });
 }
 
-function speedToSecs(sport: "swim" | "run", speed: number | null): number | null {
-  if (speed === null) return null;
-  const [lo, hi] = SPEED_RANGE[sport];
-  if (speed < lo || speed > hi) return null;
-  return PER[sport].metres / speed;
+export function heartZones(maxHr: number): string[] {
+  return HR_NAMES.map((n, i) => {
+    const lo = Math.round((HR_ZONES[i] * maxHr) / 100);
+    const hi = Math.round((HR_ZONES[i + 1] * maxHr) / 100);
+    return `Z${i + 1} ${n}: ${lo} to ${hi} bpm`;
+  });
 }
 
-// Priority: an estimate from the athlete's own sessions, then a value typed into TriCoach
-// Settings, then the value in intervals.icu settings.
-export function buildThresholds(athlete: Athlete | null, plan: Settings["plan"], est: Estimates | null = null): Thresholds {
+// Highest max HR seen in sessions, ignoring a single spike: the top value must be within
+// 5 bpm of the next highest (optical sensors sometimes record one-off spikes).
+export function measuredMaxHr(values: (number | null | undefined)[]): number | null {
+  const v = values.filter((x): x is number => typeof x === "number" && x >= 120 && x <= 225).sort((a, b) => b - a);
+  if (v.length === 0) return null;
+  for (let i = 0; i < v.length - 1; i++) if (v[i] - v[i + 1] <= 5) return Math.round(v[i]);
+  return Math.round(v[v.length - 1]);
+}
+
+// A value typed in intervals.icu settings is reported, not used. When it matches the
+// measured value there is nothing to report.
+function ignoredText(sport: Sport, s: SportSettings | null, measured: string | null): string | null {
+  let typed: string | null = null;
+  if (sport === "bike" && s?.ftp) typed = `${s.ftp} W`;
+  if (sport !== "bike" && s?.threshold_pace) {
+    const secs = PER[sport].metres / s.threshold_pace;
+    if (secs > 30 && secs < 900) typed = `${fmtSecs(secs)}${PER[sport].unit}`;
+  }
+  if (!typed || (measured && measured.endsWith(typed))) return null;
+  return `Not used: ${typed} typed in intervals.icu settings (not measured).`;
+}
+
+export function buildThresholds(
+  athlete: Athlete | null,
+  est: Estimates | null,
+  maxHr: { value: number; basis: string } | null = null,
+): Thresholds {
   const notes: string[] = [];
+  const hr = maxHr ? heartZones(maxHr.value) : [];
   const out = {} as Thresholds;
 
-  // Bike: FTP
-  const bs = settingsFor(athlete, "bike");
-  const icuFtp = bs?.ftp ?? null;
-  const estFtp = est?.ftp ?? null;
-  const ftp = estFtp?.value ?? plan.ftp_watts ?? icuFtp;
-  const manualFtp = plan.ftp_watts ?? icuFtp;
-  if (estFtp && manualFtp && Math.abs(estFtp.value - manualFtp) >= 5) {
-    notes.push(`Using estimated FTP ${estFtp.value} W instead of the ${manualFtp} W typed in ${plan.ftp_watts ? "TriCoach" : "intervals.icu"} settings.`);
-  }
-  out.bike = {
-    threshold: ftp ? `FTP ${ftp} W` : null,
-    threshold_source: estFtp ? "estimate" : plan.ftp_watts ? "settings" : icuFtp ? "intervals.icu" : null,
-    threshold_basis: estFtp?.basis ?? null,
-    indoor_ftp: bs?.indoor_ftp ?? null,
-    lthr: bs?.lthr ?? null,
-    max_hr: bs?.max_hr ?? null,
-    hr_zones: hrZones(bs),
-    work_zones: powerZones(bs, ftp),
-  };
-
-  // Swim and run: threshold pace
-  for (const sport of ["swim", "run"] as const) {
+  for (const sport of ["bike", "run", "swim"] as const) {
     const s = settingsFor(athlete, sport);
-    const icuSecs = speedToSecs(sport, s?.threshold_pace ?? null);
-    if (s?.threshold_pace && icuSecs === null) {
-      notes.push(`Ignored intervals.icu ${sport} threshold pace value ${s.threshold_pace} (outside the expected range).`);
-    }
-    const typed = sport === "swim" ? plan.swim_css : plan.threshold_run_pace;
-    const typedSecs = typed ? parsePace(typed) : null;
-    const estimate = est?.[sport] ?? null;
-    const secs = estimate?.value ?? typedSecs ?? icuSecs;
-    const manual = typedSecs ?? icuSecs;
-    if (estimate && manual && Math.abs(estimate.value - manual) >= 3) {
-      notes.push(
-        `Using estimated ${sport} threshold ${fmtSecs(estimate.value)}${PER[sport].unit} instead of the ${fmtSecs(manual)}${PER[sport].unit} typed in ${typedSecs ? "TriCoach" : "intervals.icu"} settings.`,
-      );
-    }
+    const e = est?.[sport === "bike" ? "ftp" : sport] ?? null;
+    const threshold = e ? (sport === "bike" ? `FTP ${Math.round(e.value)} W` : `${fmtSecs(e.value)}${PER[sport].unit}`) : null;
     out[sport] = {
-      threshold: secs ? `${fmtSecs(secs)}${PER[sport].unit}` : null,
-      threshold_source: estimate ? "estimate" : typedSecs ? "settings" : icuSecs ? "intervals.icu" : null,
-      threshold_basis: estimate?.basis ?? null,
+      threshold,
+      threshold_source: e ? "estimate" : null,
+      threshold_basis: e?.basis ?? null,
+      missing: e ? null : MISSING[sport],
+      ignored: ignoredText(sport, s, threshold),
       indoor_ftp: null,
-      lthr: s?.lthr ?? null,
-      max_hr: s?.max_hr ?? null,
-      hr_zones: hrZones(s),
-      work_zones: paceZones(s, sport, secs),
+      lthr: null,
+      max_hr: maxHr?.value ?? null,
+      hr_zones: hr,
+      work_zones: e ? (sport === "bike" ? powerZones(s, e.value) : paceZones(s, sport, e.value)) : [],
     };
   }
-
-  if (!athlete) notes.push("Could not read sport settings from intervals.icu; only TriCoach settings are used.");
+  if (!maxHr) notes.push("Heart rate zones need a few sessions recorded with heart rate.");
   out.notes = notes;
+  out.heart = { max_hr: maxHr?.value ?? null, basis: maxHr?.basis ?? "No heart rate data yet", zones: hr };
   return out;
 }
 

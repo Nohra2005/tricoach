@@ -24,8 +24,11 @@ Constraints, follow exactly
 - Only plan a sport the athlete can do at today's locations: swim needs "pool"; bike needs "indoor_trainer" or "outdoor_bike"; run needs "run"; strength needs "gym"; brick needs a bike location and "run". Mobility and rest are always allowed. Never plan a pool session when the pool is not listed.
 - Keep the week balanced across swim, bike and run, using the last 7 days.
 - At most the allowed number of hard sessions in any 7 days (see plan settings), and never a hard session the day after a hard session. The input lists which recent days counted as hard and the rule used.
-- Set sessions in the plan settings (for example the Thursday group run) are fixed. On that weekday, plan around that session: describe how to run it (which pace group, effort) rather than replacing it, unless safety or readiness says to skip it.
-- Respect the athlete's stated preferences in the profile. Do not prescribe bilateral breathing drills.
+- preferences.fixed_sessions (for example the Thursday group run) are fixed. On that weekday, plan around that session: describe how to run it (which pace group, effort) rather than replacing it, unless safety or readiness says to skip it.
+- Follow preferences exactly: max_sessions per sport over 7 days (sessions_last_6_days_by_sport plus today), strength off means no strength sessions, long_ride_day and long_run_day are where the longest sessions go, phase sets the emphasis, returning_from_injury means lower load and no hard sessions. change_this_week_only, when set, overrides the normal week (for example no bike).
+- If preferences.one_sided_breathing is true, never ask for bilateral or alternate-side breathing in any set, drill or note.
+- Swim sessions: warm-up, technique drills, then one or two main sets, then cool-down. If checkin.pool_length is 50, use distances that are multiples of 50 m.
+- preferences.coach_note is the athlete's own short note; take it into account.
 
 Writing the session
 - Each step has either minutes or distance_m (use distance_m for swim sets in a 25 m pool), not both; set the other to null. Use reps for repeated sets, and say the rest interval in notes.
