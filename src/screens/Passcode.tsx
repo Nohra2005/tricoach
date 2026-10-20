@@ -26,42 +26,46 @@ export function Passcode({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <main>
-      <div className="brand">TriCoach</div>
-      <h1>Your daily session, from your data.</h1>
-      <p className="muted">
-        Each morning TriCoach reads your watch data, asks a few quick questions, and writes the day's swim, bike or run.
-      </p>
-
-      <section className="card">
-        <div className="eyebrow muted">Just looking?</div>
-        <p style={{ marginTop: 4 }}>
-          Try it with a made-up athlete and six weeks of generated data. No passcode, nothing to install, and nothing you do
-          reaches a real account.
+    <main className="signin">
+      <header className="band">
+        <div className="label" style={{ color: "var(--accent)" }}>
+          TriCoach
+        </div>
+        <h1 style={{ marginTop: 6 }}>Your daily session, from your data.</h1>
+        <p className="muted" style={{ marginTop: 6 }}>
+          Each morning TriCoach reads your watch data, asks what the watch can't measure, and writes the day's swim, bike or run.
         </p>
-        <button
-          className="primary"
-          onClick={() => {
-            startDemo();
-            onDone();
-          }}
-        >
-          Try the demo
-        </button>
-      </section>
+      </header>
+      <div className="page">
+        <section className="panel">
+          <span className="label">Just looking?</span>
+          <p style={{ marginTop: 4 }}>
+            Try it with a made-up athlete and six weeks of generated data. No passcode, nothing to install, and nothing you do reaches a real account.
+          </p>
+          <button
+            className="primary"
+            style={{ width: "100%", marginTop: 12 }}
+            onClick={() => {
+              startDemo();
+              onDone();
+            }}
+          >
+            Try the demo
+          </button>
+        </section>
 
-      <div className="divider">or sign in</div>
-
-      <form onSubmit={submit}>
-        <label className="field">
-          <span>Passcode</span>
-          <input type="password" autoComplete="current-password" value={value} onChange={(e) => setValue(e.target.value)} />
-        </label>
-        <button disabled={busy || !value} style={{ width: "100%" }}>
-          {busy ? "Checking..." : "Sign in"}
-        </button>
-      </form>
-      <ErrorBox message={error} />
+        <form className="panel" onSubmit={submit}>
+          <span className="label">Athletes</span>
+          <label className="field">
+            <span className="label">Passcode</span>
+            <input type="password" autoComplete="current-password" value={value} onChange={(e) => setValue(e.target.value)} />
+          </label>
+          <button disabled={busy || !value} style={{ width: "100%", marginTop: 12 }}>
+            {busy ? "Checking..." : "Sign in"}
+          </button>
+          <ErrorBox message={error} />
+        </form>
+      </div>
     </main>
   );
 }

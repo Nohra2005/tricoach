@@ -14,7 +14,8 @@ See [PLAN.md](PLAN.md) for the architecture and data model.
 - **Storage**: Netlify Blobs (store `tricoach`): `settings.json`, `days/YYYY-MM-DD.json`, `jobs/<id>.json`.
 - **Generation**: `/api/generate` starts the `generate-background` function (15 minute limit), which calls the model (Groq `openai/gpt-oss-120b` by default) with strict JSON-schema output validated by zod, checks the plan against hard rules (location, time, hard-day spacing, pain), retries once with the errors, and otherwise reports the error. A free-tier rate limit (HTTP 429) is waited out using `retry-after`. The app polls `/api/job`.
 - **Coaching rules**: [netlify/functions/lib/coach-prompt.ts](netlify/functions/lib/coach-prompt.ts). Edit it and redeploy; each plan stores a hash of the prompt that produced it.
-- **Athlete profile and plan settings**: edited in the app (Settings tab), stored in Blobs, no redeploy needed.
+- **Your data (read-only)**: FTP, run threshold pace, swim CSS and heart rate zones are measured from the athlete's own sessions ([thresholds.ts](netlify/functions/lib/thresholds.ts)). Nothing typed in is used; values typed in intervals.icu are shown as "not used". Where there is not enough data the app says what is missing and coaches by heart rate or effort.
+- **Preferences**: races, weekly schedule (minutes and usual place per day), fixed sessions, a one-week change, races finished, equipment, long ride/run day, max sessions per sport, strength, hard sessions per week, phase, one-sided breathing, returning from injury and a short note. Edited in Settings > Preferences, stored in Blobs, no redeploy needed. Older free-text profiles are migrated on read ([settings-migrate.ts](netlify/functions/lib/settings-migrate.ts)).
 
 ## Environment variables
 
@@ -104,8 +105,8 @@ Send people [triathloncoach.netlify.app/?demo](https://triathloncoach.netlify.ap
 ## First checks after deploying
 
 1. Open `https://<your-site>/api/health` in a browser. Without the passcode it lists which environment variables are set (true/false only).
-2. Open the app, enter the passcode, go to Settings > Check connections. It shows your intervals.icu athlete, how many of the last 7 days have HRV, sleep and resting HR, the recent activity types, and whether the Groq key and model work.
-3. Fill in your goal race and FTP in Settings, then do a check-in on Today.
+2. Open the app, enter the passcode, go to Settings > Connections. It shows your intervals.icu athlete, how many of the last 7 days have HRV, sleep and resting HR, the recent activity types, and whether the Groq key and model work.
+3. Fill in your races and weekly schedule in Settings > Preferences, check Settings > Your data, then do a check-in on Today.
 
 ## API
 
@@ -120,5 +121,6 @@ Send people [triathloncoach.netlify.app/?demo](https://triathloncoach.netlify.ap
 | POST | `/api/feedback` | `{date, feedback}`, also matches the recorded activity |
 | POST | `/api/match` | Re-match recent days with no recorded activity |
 | GET | `/api/history[?format=csv\|json]` | All days, or an export download |
-| GET/PUT | `/api/settings` | Profile and plan settings |
+| GET/PUT | `/api/settings` | Preferences |
+| POST | `/api/delete-data` | `{confirm: "DELETE"}`, deletes this account's TriCoach data (not intervals.icu or Garmin) |
 | POST | `/api/send-workout` | `{date}`, puts the session on the intervals.icu calendar (simulated in the demo) |

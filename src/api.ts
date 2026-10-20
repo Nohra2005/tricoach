@@ -122,6 +122,8 @@ export const api = {
   history: () => call(z.object({ days: z.array(DayRecord) }), "/api/history"),
   settings: () => call(Settings, "/api/settings"),
   saveSettings: (s: Settings) => call(Settings, "/api/settings", { method: "PUT", body: JSON.stringify(s) }),
+  deleteData: () =>
+    call(z.object({ deleted: z.number() }), "/api/delete-data", { method: "POST", body: JSON.stringify({ confirm: "DELETE" }) }),
 
   // Downloads go through fetch so the passcode stays in a header, never in a URL.
   async download(format: "csv" | "json") {
