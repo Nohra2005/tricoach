@@ -17,8 +17,8 @@
     {
       "binding": "DB",
       "database_name": "tricoach",
-      // Paste the id of the D1 database "tricoach" here (Cloudflare dashboard > D1).
-      "database_id": "00000000-0000-0000-0000-000000000000"
+      // The D1 database "tricoach" (Cloudflare dashboard > Storage & databases > D1).
+      "database_id": "83181410-0fcc-41d2-ac82-f8d92a3e6f31"
     }
   ],
   "queues": {

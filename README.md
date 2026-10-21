@@ -4,7 +4,7 @@ A personal triathlon coaching PWA for one athlete. Each morning it reads Garmin 
 
 See [PLAN.md](PLAN.md) for the architecture and data model.
 
-**Try it:** [triathloncoach.netlify.app/?demo](https://triathloncoach.netlify.app/?demo) opens a demo with a made-up athlete. No passcode needed.
+**Try it:** [tricoach.tatiananohra5.workers.dev/?demo](https://tricoach.tatiananohra5.workers.dev/?demo) opens a demo with a made-up athlete. No passcode needed.
 
 ## How it works
 
@@ -97,7 +97,7 @@ The free plan has 100,000 requests a day, 10 ms of CPU per request (the app need
 
 ## The public demo (for reviewers)
 
-Send people [triathloncoach.netlify.app/?demo](https://triathloncoach.netlify.app/?demo), or they can tap **Try the demo** on the sign-in screen.
+Send people [tricoach.tatiananohra5.workers.dev/?demo](https://tricoach.tatiananohra5.workers.dev/?demo), or they can tap **Try the demo** on the sign-in screen.
 
 - **Made-up data only.** The demo athlete's six weeks of HRV, sleep, resting HR, fitness and sessions are generated ([demo.ts](api/lib/demo.ts)) in the same shape as the intervals.icu API, so the real metrics, AI and rule code run on them. The demo never calls intervals.icu and cannot read any real account.
 - **Private sandbox per visitor.** The browser keeps a random id; each visitor's check-ins, sessions and feedback are stored under `demo/<id>/`. Exit demo (top banner or Settings) forgets it.
