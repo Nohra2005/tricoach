@@ -80,6 +80,7 @@ export default async (req: Request): Promise<void> => {
       },
       athlete_thresholds_and_zones: metrics.thresholds ?? null,
       typical_last_6_weeks: metrics.typical ?? null,
+      run_pace_at_heart_rate: metrics.run_pace_at_hr ?? null,
       last_7_days_by_sport: metrics.last7,
       sessions_last_14_days: metrics.activities14.map(({ id: _id, start_local: _s, ...a }) => dropNulls(a)),
       hard_days_last_14: hard,
@@ -99,6 +100,7 @@ export default async (req: Request): Promise<void> => {
         oneSidedBreathing: settings.one_sided_breathing,
         noSports: thisWeek?.no_sports ?? [],
         sessionsLast6Days,
+        runTargets: settings.run_targets,
       },
     };
     let result: GenerateResult;

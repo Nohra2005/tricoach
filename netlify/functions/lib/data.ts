@@ -3,7 +3,7 @@ import type { DayRecord, Metrics } from "../../../shared/schemas";
 import { getActivities, getAthlete, getMaxHeartRates, getPaceCurve, getWellness, summarise, type Athlete } from "./intervals";
 import { ESTIMATE_DAYS, eftpFromWellness, runThreshold, swimCss } from "./estimates";
 import { computeMetrics } from "./metrics";
-import { buildThresholds, measuredMaxHr, typicalValues } from "./thresholds";
+import { buildThresholds, heartZoneBounds, measuredMaxHr, runPaceAtHr, typicalValues } from "./thresholds";
 import { addDays } from "./dates";
 
 export const WELLNESS_DAYS = 42;
@@ -43,9 +43,11 @@ export async function loadMetrics(date: string): Promise<Metrics> {
   const all = acts.activities.map(summarise);
   const from14 = addDays(date, -(ACTIVITY_DAYS - 1));
   const metrics = computeMetrics(date, wellness, all.filter((a) => a.date >= from14), acts.hidden);
+  const rest = restingHr(metrics);
   return {
     ...metrics,
-    thresholds: buildThresholds(athlete, estimates, maxHr, restingHr(metrics)),
+    thresholds: buildThresholds(athlete, estimates, maxHr, rest),
+    run_pace_at_hr: maxHr ? runPaceAtHr(all, heartZoneBounds(maxHr.value, rest?.value ?? null), TYPICAL_DAYS) : null,
     trend: wellness.map((w) => ({ date: w.id, ctl: w.ctl, atl: w.atl })),
     last_pool_length: all.find((a) => a.sport === "swim" && a.pool_length)?.pool_length ?? null,
     typical: typicalValues(all, date, TYPICAL_DAYS),

@@ -18,7 +18,15 @@
 // shows a note instead of steps, so the sender reads back workout_doc and retries with
 // the "simple" variant (no labels) before giving up.
 import type { CheckIn, StoredPlan } from "../../../shared/schemas";
-import { fmtSecs } from "./thresholds";
+import { fmtSecs, type HrZone } from "./thresholds";
+
+// Heart rate steps: intervals.icu's "Z2 HR" would use the zones typed in its settings,
+// so the athlete's measured zones are sent as % of the max HR intervals.icu holds
+// ("74-82% HR"), which it turns into the same bpm on the watch. Without both, "Z2 HR".
+export interface HrTargets {
+  zones: HrZone[];
+  intervalsMaxHr: number | null;
+}
 
 export type WatchSport = "Swim" | "Ride" | "VirtualRide" | "Run";
 
@@ -70,7 +78,7 @@ function distance(metres: number, swim: boolean): string {
 type Step = StoredPlan["steps"][number];
 export type TextVariant = "full" | "simple";
 
-function target(step: Step, sport: StoredPlan["sport"]): string {
+function target(step: Step, sport: StoredPlan["sport"], hr?: HrTargets): string {
   const t = step.target_spec;
   if (!t || t.low === null || t.high === null) return "";
   if (sport === "swim") return ""; // see the note at the top: Garmin rejects swim targets
@@ -78,8 +86,17 @@ function target(step: Step, sport: StoredPlan["sport"]): string {
   switch (t.kind) {
     case "power_pct_ftp":
       return `${range(t.low, t.high)}%`;
-    case "hr_zone":
+    case "hr_zone": {
+      const lo = hr?.zones.find((z) => z.zone === Math.round(t.low!));
+      const hi = hr?.zones.find((z) => z.zone === Math.round(t.high!));
+      const max = hr?.intervalsMaxHr;
+      if (lo && hi && max) {
+        const a = Math.floor((lo.lo / max) * 100);
+        const b = Math.ceil((hi.hi / max) * 100);
+        return `${a}-${b}% HR`;
+      }
       return t.low === t.high ? `Z${t.low} HR` : `Z${t.low}-Z${t.high} HR`;
+    }
     case "pace": {
       // slower pace first, as in the intervals.icu examples ("7:15-7:00/km Pace")
       return t.low === t.high ? `${fmtSecs(t.low)}/km Pace` : `${fmtSecs(t.high)}-${fmtSecs(t.low)}/km Pace`;
@@ -95,20 +112,20 @@ function stepType(label: string): string {
   return "";
 }
 
-function line(step: Step, sport: StoredPlan["sport"], variant: TextVariant): string | null {
+function line(step: Step, sport: StoredPlan["sport"], variant: TextVariant, hr?: HrTargets): string | null {
   const amount =
     step.distance_m !== null ? distance(step.distance_m, sport === "swim") : step.minutes !== null ? duration(step.minutes) : null;
   if (!amount) return null;
   const label = variant === "full" ? cleanLabel(step.label) : "";
-  return ["-", label, amount, target(step, sport), stepType(step.label)].filter(Boolean).join(" ");
+  return ["-", label, amount, target(step, sport, hr), stepType(step.label)].filter(Boolean).join(" ");
 }
 
 const restLine = (seconds: number) => `- ${duration(seconds / 60)} intensity=rest`;
 
-export function toWorkoutText(plan: StoredPlan, variant: TextVariant = "full"): string {
+export function toWorkoutText(plan: StoredPlan, variant: TextVariant = "full", hr?: HrTargets): string {
   const out: string[] = [];
   for (const step of plan.steps) {
-    const l = line(step, plan.sport, variant);
+    const l = line(step, plan.sport, variant, hr);
     if (!l) continue;
     if (step.reps && step.reps > 1) {
       if (out.length && out[out.length - 1] !== "") out.push("");

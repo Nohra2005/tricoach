@@ -2,7 +2,7 @@
 // (estimates.ts), heart rate zones from their measured max HR, and typical values from
 // the last 6 weeks. Values typed into intervals.icu settings are never used as numbers;
 // when they exist they are reported as ignored. Pure functions, no network.
-import type { ActivitySummary, Thresholds, Typical } from "../../../shared/schemas";
+import type { ActivitySummary, RunPaceAtHr, Thresholds, Typical } from "../../../shared/schemas";
 import type { Athlete, SportSettings } from "./intervals";
 import type { Estimates } from "./estimates";
 
@@ -81,13 +81,73 @@ function paceZones(s: SportSettings | null, sport: "swim" | "run", thresholdSecs
 // Zones as % of heart rate reserve (max minus resting), Garmin's "%HRR" option, when the
 // resting HR is known; otherwise as % of max HR, which puts the low zones too low for
 // trained athletes.
-export function heartZones(maxHr: number, restHr: number | null = null): string[] {
+export interface HrZone {
+  zone: number;
+  name: string;
+  lo: number;
+  hi: number;
+}
+export function heartZoneBounds(maxHr: number, restHr: number | null = null): HrZone[] {
   const rest = restHr !== null && restHr >= 30 && restHr < maxHr - 40 ? restHr : 0;
-  return HR_NAMES.map((n, i) => {
-    const lo = Math.round(rest + (HR_ZONES[i] * (maxHr - rest)) / 100);
-    const hi = Math.round(rest + (HR_ZONES[i + 1] * (maxHr - rest)) / 100);
-    return `Z${i + 1} ${n}: ${lo} to ${hi} bpm`;
+  return HR_NAMES.map((name, i) => ({
+    zone: i + 1,
+    name,
+    lo: Math.round(rest + (HR_ZONES[i] * (maxHr - rest)) / 100),
+    hi: Math.round(rest + (HR_ZONES[i + 1] * (maxHr - rest)) / 100),
+  }));
+}
+export function heartZones(maxHr: number, restHr: number | null = null): string[] {
+  return heartZoneBounds(maxHr, restHr).map((z) => `Z${z.zone} ${z.name}: ${z.lo} to ${z.hi} bpm`);
+}
+
+// Parses "Z2 Easy: 143 to 158 bpm" back into bounds (for day records that stored text).
+export function parseHeartZones(zones: string[]): HrZone[] {
+  return zones.flatMap((z) => {
+    const m = /^Z(\d) ([^:]+): (\d+) to (\d+) bpm$/.exec(z);
+    return m ? [{ zone: Number(m[1]), name: m[2], lo: Number(m[3]), hi: Number(m[4]) }] : [];
   });
+}
+
+// How fast the athlete runs at each heart rate, from their own runs: each run's average
+// heart rate and average pace, with a straight line fitted through them (pace gets
+// faster as heart rate goes up). A zone gets a pace only where the runs cover that heart
+// rate (within 8 bpm), so it is never stretched far beyond the data. Hills and heat are not accounted for.
+export const MIN_RUNS_FOR_PACE_AT_HR = 5;
+export function runPaceAtHr(activities: ActivitySummary[], zones: HrZone[], days: number): RunPaceAtHr | null {
+  const pts = activities
+    .filter((a) => a.sport === "run" && (a.minutes ?? 0) >= 15 && a.avg_hr !== null && a.pace_per_km !== null)
+    .map((a) => ({ hr: a.avg_hr!, pace: parsePace(a.pace_per_km!) }))
+    .filter((p): p is { hr: number; pace: number } => p.pace !== null && p.pace >= 150 && p.pace <= 720 && p.hr >= 80);
+  if (pts.length < MIN_RUNS_FOR_PACE_AT_HR || zones.length === 0) return null;
+  const n = pts.length;
+  const mx = pts.reduce((a, p) => a + p.hr, 0) / n;
+  const my = pts.reduce((a, p) => a + p.pace, 0) / n;
+  const sxx = pts.reduce((a, p) => a + (p.hr - mx) ** 2, 0);
+  const sxy = pts.reduce((a, p) => a + (p.hr - mx) * (p.pace - my), 0);
+  const minHr = Math.min(...pts.map((p) => p.hr));
+  const maxHr = Math.max(...pts.map((p) => p.hr));
+  // Needs some spread in heart rate, and pace must get faster as heart rate rises.
+  if (sxx === 0 || maxHr - minHr < 8 || sxy >= 0) return null;
+  const slope = sxy / sxx;
+  const at = (hr: number) => my + slope * (hr - mx);
+  const covered = (hr: number) => hr >= minHr - 8 && hr <= maxHr + 8;
+  return {
+    runs: n,
+    basis: `average heart rate and pace of ${n} runs of 15 minutes or more in the last ${days} days, ${Math.round(minHr)} to ${Math.round(maxHr)} bpm`,
+    zones: zones.map((z) => {
+      const slow = covered(z.lo) ? Math.round(at(z.lo)) : null;
+      const fast = covered(z.hi) ? Math.round(at(z.hi)) : null;
+      const pace =
+        slow !== null && fast !== null
+          ? `about ${fmtSecs(slow)} to ${fmtSecs(fast)}/km`
+          : slow !== null
+            ? `about ${fmtSecs(slow)}/km at ${z.lo} bpm (no runs harder than ${Math.round(maxHr)} bpm yet)`
+            : fast !== null
+              ? `about ${fmtSecs(fast)}/km at ${z.hi} bpm (no runs easier than ${Math.round(minHr)} bpm yet)`
+              : "no runs at this heart rate yet";
+      return { zone: z.zone, name: z.name, hr_low: z.lo, hr_high: z.hi, pace_slow: slow, pace_fast: fast, text: `Z${z.zone} ${z.name}, ${z.lo} to ${z.hi} bpm: ${pace}` };
+    }),
+  };
 }
 
 // Highest reliable max HR seen in sessions. Optical sensors sometimes record one-off

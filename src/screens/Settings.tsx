@@ -92,6 +92,63 @@ function Threshold({ sport, label, t }: { sport: string; label: string; t: Sport
   );
 }
 
+const paceText = (secs: number | null) => (secs === null ? "—" : `${Math.floor(secs / 60)}:${String(Math.round(secs % 60)).padStart(2, "0")}`);
+
+function RunPaceAtHrPanel({ r }: { r: NonNullable<Metrics["run_pace_at_hr"]> | null }) {
+  return (
+    <section className="panel" aria-label="Run pace at each heart rate">
+      <div className="spread">
+        <span className="row" style={{ gap: 8 }}>
+          <span className="sport-dot run" />
+          <strong>Run · your pace at each heart rate</strong>
+        </span>
+        <span className={`chip ${r ? "ok" : "warn"}`}>{r ? "Measured" : "Not enough data"}</span>
+      </div>
+      {r ? (
+        <>
+          <table className="t" style={{ marginTop: 8 }}>
+            <thead>
+              <tr>
+                <th>ZONE</th>
+                <th className="num">HEART RATE</th>
+                <th className="num">YOUR PACE /KM</th>
+              </tr>
+            </thead>
+            <tbody>
+              {r.zones.map((z) => (
+                <tr key={z.zone}>
+                  <td>
+                    Z{z.zone} {z.name}
+                  </td>
+                  <td className="num mono">
+                    {z.hr_low}–{z.hr_high}
+                  </td>
+                  <td className="num mono">
+                    {z.pace_slow === null && z.pace_fast === null
+                      ? "no runs yet"
+                      : z.pace_slow === null
+                        ? `slower than ${paceText(z.pace_fast)}`
+                        : z.pace_fast === null
+                          ? `faster than ${paceText(z.pace_slow)}`
+                          : `${paceText(z.pace_slow)} to ${paceText(z.pace_fast)}`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="small muted" style={{ marginTop: 6 }}>
+            From the {r.basis}. Easy and aerobic run paces come from this, not from the threshold. Hills and heat make it slower.
+          </p>
+        </>
+      ) : (
+        <p className="small" style={{ marginTop: 4 }}>
+          Needs at least 5 runs of 15 minutes or more with heart rate in the last 6 weeks. Until then runs are coached by heart rate.
+        </p>
+      )}
+    </section>
+  );
+}
+
 function YourData() {
   const [m, setM] = useState<Metrics | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +180,7 @@ function YourData() {
           <>
             <Threshold sport="bike" label="Bike · FTP" t={t.bike} />
             <Threshold sport="run" label="Run · threshold pace" t={t.run} />
+            <RunPaceAtHrPanel r={m.run_pace_at_hr ?? null} />
             <Threshold sport="swim" label="Swim · CSS" t={t.swim} />
           </>
         ) : (
@@ -488,6 +546,24 @@ function Preferences() {
                 </option>
               ))}
             </select>
+          </div>
+          <div className="kv" style={kvRow}>
+            <span>
+              Run targets
+              <div className="small muted">paces come from your own runs</div>
+            </span>
+            <div className="seg" style={{ width: 180 }}>
+              {(
+                [
+                  ["hr", "Heart rate"],
+                  ["pace", "Pace"],
+                ] as const
+              ).map(([v, label]) => (
+                <button key={v} type="button" className={s.run_targets === v ? "on" : ""} aria-pressed={s.run_targets === v} onClick={() => set({ run_targets: v })} style={{ fontFamily: "var(--sans)", fontSize: 13 }}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="kv" style={kvRow}>
             <span>

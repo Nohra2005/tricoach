@@ -26,6 +26,7 @@ export interface RuleContext {
     oneSidedBreathing: boolean;
     noSports: ("swim" | "bike" | "run")[]; // "change this week only"
     sessionsLast6Days: { swim: number; bike: number; run: number };
+    runTargets?: "hr" | "pace";
   };
 }
 
@@ -108,6 +109,19 @@ export function checkPlan(plan: Plan, ctx: RuleContext): string[] {
       const max = p.maxSessions[sp];
       if (max !== null && p.sessionsLast6Days[sp] + 1 > max) {
         v.push(`That would be ${p.sessionsLast6Days[sp] + 1} ${sp} sessions in 7 days; the athlete's limit is ${max}.`);
+      }
+    }
+    // Run targets follow the athlete's choice: heart rate zones, or pace. Open steps
+    // (RPE, none) are always allowed, for strides or a free warm-up.
+    if (p.runTargets && (plan.sport === "run" || plan.sport === "brick")) {
+      const wrong = p.runTargets === "hr" ? "pace" : "hr_zone";
+      const runSteps = plan.sport === "run" ? plan.steps : plan.steps.filter((s) => /run/i.test(s.label));
+      if (runSteps.some((s) => s.target_spec?.kind === wrong)) {
+        v.push(
+          p.runTargets === "hr"
+            ? 'The athlete wants heart rate targets on runs: use target_spec kind "hr_zone" (or "rpe"/"none"), not "pace".'
+            : 'The athlete wants pace targets on runs: use target_spec kind "pace" (or "rpe"/"none"), not "hr_zone".',
+        );
       }
     }
     if (p.oneSidedBreathing && plan.sport === "swim") {

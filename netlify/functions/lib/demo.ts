@@ -158,6 +158,7 @@ export const DEMO_SETTINGS: Settings = {
   one_sided_breathing: false,
   returning_from_injury: false,
   coach_note: "This is a made-up athlete for the TriCoach demo.",
+  run_targets: "hr",
 };
 
 // Used when the demo's daily limit for live AI sessions is reached: a fixed template that

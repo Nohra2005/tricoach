@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   one_sided_breathing: true,
   returning_from_injury: false,
   coach_note: "Swim limiters: breathing and short, rushed strokes. Long-term swim goal 1:40/100m. University student, so weekday time is limited.",
+  run_targets: "hr",
 };
 
 // Starting point for any other account: fill it in on the Preferences screen.
@@ -58,4 +59,5 @@ export const BLANK_SETTINGS: Settings = {
   one_sided_breathing: false,
   returning_from_injury: false,
   coach_note: "",
+  run_targets: "hr",
 };

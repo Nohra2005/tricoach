@@ -196,6 +196,24 @@ export type Typical = z.infer<typeof Typical>;
 const LastValue = z.object({ value: z.number(), date: DateStr }).nullable();
 export const Latest = z.object({ hrv: LastValue, resting_hr: LastValue, sleep_hours: LastValue });
 
+// How fast the athlete actually runs in each heart rate zone, from their recorded runs.
+export const RunPaceAtHr = z.object({
+  runs: z.number().int(), // runs used
+  basis: z.string(),
+  zones: z.array(
+    z.object({
+      zone: z.number().int(), // 1..5, as in the heart rate zones
+      name: z.string(),
+      hr_low: z.number(),
+      hr_high: z.number(),
+      pace_slow: z.number().nullable(), // seconds per km at hr_low; null outside the data
+      pace_fast: z.number().nullable(), // seconds per km at hr_high
+      text: z.string(), // "Z2 Easy, 143 to 158 bpm: about 6:20 to 5:55/km"
+    }),
+  ),
+});
+export type RunPaceAtHr = z.infer<typeof RunPaceAtHr>;
+
 export const Metrics = z.object({
   date: DateStr,
   today: z.object({
@@ -226,6 +244,7 @@ export const Metrics = z.object({
   typical: Typical.optional(),
   trend: z.array(z.object({ date: DateStr, ctl: z.number().nullable(), atl: z.number().nullable() })).optional(),
   last_pool_length: z.number().nullable().optional(),
+  run_pace_at_hr: RunPaceAtHr.nullable().optional(),
 });
 export type Metrics = z.infer<typeof Metrics>;
 
@@ -288,6 +307,9 @@ export const Settings = z.object({
   one_sided_breathing: z.boolean(),
   returning_from_injury: z.boolean(),
   coach_note: z.string().max(300),
+  // How run steps are targeted: heart rate zones, or paces taken from the athlete's own
+  // pace at each heart rate. Added later, so older saved settings default to heart rate.
+  run_targets: z.enum(["hr", "pace"]).default("hr"),
 });
 export type Settings = z.infer<typeof Settings>;
 

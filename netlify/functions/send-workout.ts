@@ -7,7 +7,8 @@ import { z } from "zod";
 import { DateStr } from "../../shared/schemas";
 import { requireUser } from "./lib/auth";
 import { HttpError, handle, json, readJson } from "./lib/http";
-import { getEvent, upsertWorkout } from "./lib/intervals";
+import { getAthlete, getEvent, upsertWorkout } from "./lib/intervals";
+import { parseHeartZones } from "./lib/thresholds";
 import { isDemo } from "./lib/auth";
 import { getDay, now, putDay } from "./lib/store";
 import { parsedSummary, toWorkoutText, watchType, whyNotSendable, type TextVariant } from "./lib/workout-text";
@@ -25,10 +26,13 @@ export default handle(async (req) => {
   const type = watchType(plan, day.checkin);
   if (reason || !type) throw new HttpError(422, reason ?? "This session can't be sent to the watch.");
 
+  // The athlete's measured heart rate zones, as stored with the day's metrics.
+  const zones = parseHeartZones(day.metrics?.thresholds?.heart?.zones ?? []);
+  const measuredMax = day.metrics?.thresholds?.heart?.max_hr ?? null;
   const at = now();
   if (isDemo()) {
     // The demo shows exactly what would be sent, without contacting intervals.icu.
-    const text = toWorkoutText(plan, "full");
+    const text = toWorkoutText(plan, "full", { zones, intervalsMaxHr: measuredMax });
     const steps = text.split("\n").filter((l) => l.startsWith("- ")).length;
     day.watch = {
       event_id: "demo",
@@ -46,8 +50,12 @@ export default handle(async (req) => {
     await putDay(day);
     return json({ day });
   }
+  const athlete = await getAthlete().catch(() => null);
+  const kind = type === "Run" ? "Run" : type === "Swim" ? "Swim" : "Ride";
+  const intervalsMaxHr = athlete?.sportSettings.find((s) => s.types.includes(kind))?.max_hr ?? null;
+  const hr = { zones, intervalsMaxHr };
   const send = (variant: TextVariant) => {
-    const text = toWorkoutText(plan, variant);
+    const text = toWorkoutText(plan, variant, hr);
     return upsertWorkout({
       uid: `tricoach-${date}`, // same uid: sending again replaces the calendar entry
       date,
