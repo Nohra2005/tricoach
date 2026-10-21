@@ -1,28 +1,7 @@
+# TriCoach now runs on Cloudflare (wrangler.jsonc). The old Netlify site stays up as it
+# is, but must not rebuild: this repository no longer contains Netlify functions, and each
+# deploy costs free-plan credits. "exit 0" tells Netlify to skip every build.
 [build]
   command = "npm run build"
   publish = "dist"
-  # Free plan: each production deploy costs credits. Skip the build when a push only
-  # changes files that do not affect the site (README, tests, CI, scripts).
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- src shared netlify public index.html vite.config.ts package.json package-lock.json netlify.toml"
-
-[build.environment]
-  NODE_VERSION = "22"
-
-[functions]
-  directory = "netlify/functions"
-  node_bundler = "esbuild"
-
-[dev]
-  framework = "vite"
-  targetPort = 5173
-
-# Single-page app: unknown paths serve the app shell (API paths are matched by functions first)
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-[[headers]]
-  for = "/manifest.webmanifest"
-  [headers.values]
-    Content-Type = "application/manifest+json"
+  ignore = "exit 0"

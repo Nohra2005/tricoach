@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { CheckIn, Plan } from "../shared/schemas";
-import { checkPlan, tidyText } from "../netlify/functions/lib/rules";
-import { matchActivity } from "../netlify/functions/lib/match";
-import { ActivitySchema, summarise } from "../netlify/functions/lib/intervals";
+import { checkPlan, tidyText } from "../api/lib/rules";
+import { matchActivity } from "../api/lib/match";
+import { ActivitySchema, summarise } from "../api/lib/intervals";
 import { activityRaw, emptyDayForTest } from "./fixtures";
 
 const checkin: CheckIn = {

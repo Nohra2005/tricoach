@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ActivitySummary, CheckIn, Plan, StoredPlan } from "../shared/schemas";
-import { heartZoneBounds, parseHeartZones, heartZones, runPaceAtHr } from "../netlify/functions/lib/thresholds";
-import { checkPlan } from "../netlify/functions/lib/rules";
-import { toWorkoutText } from "../netlify/functions/lib/workout-text";
+import { heartZoneBounds, parseHeartZones, heartZones, runPaceAtHr } from "../api/lib/thresholds";
+import { checkPlan } from "../api/lib/rules";
+import { toWorkoutText } from "../api/lib/workout-text";
 import { Settings } from "../shared/schemas";
-import { BLANK_SETTINGS } from "../netlify/functions/lib/defaults";
+import { BLANK_SETTINGS } from "../api/lib/defaults";
 
 const run = (avg_hr: number, pace: string, minutes = 45): ActivitySummary => ({
   id: `r${avg_hr}${pace}`,

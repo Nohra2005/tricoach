@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { PaceCurveSet, bestTime, eftpFromWellness, runThreshold, swimCss } from "../netlify/functions/lib/estimates";
-import { WellnessSchema } from "../netlify/functions/lib/intervals";
+import { PaceCurveSet, bestTime, eftpFromWellness, runThreshold, swimCss } from "../api/lib/estimates";
+import { WellnessSchema } from "../api/lib/intervals";
 
 const curve = (distance: number[], values: number[], paceModels: unknown[] = []) =>
   PaceCurveSet.parse({ list: [{ distance, values, paceModels }] });

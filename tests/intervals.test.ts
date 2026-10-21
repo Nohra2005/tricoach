@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ActivitySchema, WellnessSchema, sportOf, summarise } from "../netlify/functions/lib/intervals";
+import { ActivitySchema, WellnessSchema, sportOf, summarise } from "../api/lib/intervals";
 import { activityRaw } from "./fixtures";
 
 describe("intervals parsing", () => {

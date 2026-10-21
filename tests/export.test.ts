@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toCsv } from "../netlify/functions/lib/export";
+import { toCsv } from "../api/lib/export";
 import { emptyDayForTest } from "./fixtures";
 
 describe("toCsv", () => {

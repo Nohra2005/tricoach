@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { configuredUsers, resolveUser, runAs, currentUser, demoUser } from "../netlify/functions/lib/users";
-import { ActivitySchema, WellnessSchema, getWellness, summarise } from "../netlify/functions/lib/intervals";
-import { demoActivities, demoSamplePlan, demoWellness } from "../netlify/functions/lib/demo";
-import { computeMetrics } from "../netlify/functions/lib/metrics";
-import { checkPlan } from "../netlify/functions/lib/rules";
+import { configuredUsers, resolveUser, runAs, currentUser, demoUser } from "../api/lib/users";
+import { ActivitySchema, WellnessSchema, getWellness, summarise } from "../api/lib/intervals";
+import { demoActivities, demoSamplePlan, demoWellness } from "../api/lib/demo";
+import { computeMetrics } from "../api/lib/metrics";
+import { checkPlan } from "../api/lib/rules";
 import type { CheckIn } from "../shared/schemas";
 
 const env = {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { migrateSettings } from "../netlify/functions/lib/settings-migrate";
-import { BLANK_SETTINGS, DEFAULT_SETTINGS } from "../netlify/functions/lib/defaults";
-import { checkPlan } from "../netlify/functions/lib/rules";
+import { migrateSettings } from "../api/lib/settings-migrate";
+import { BLANK_SETTINGS, DEFAULT_SETTINGS } from "../api/lib/defaults";
+import { checkPlan } from "../api/lib/rules";
 import { Settings, type CheckIn, type Plan } from "../shared/schemas";
 
 const legacy = {

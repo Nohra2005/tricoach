@@ -7,3 +7,5 @@ dev-dist/
 !.env.example
 coverage/
 *.log
+.dev.vars
+.wrangler/

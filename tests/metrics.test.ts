@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { WellnessSchema } from "../netlify/functions/lib/intervals";
-import { computeMetrics, mean, sd } from "../netlify/functions/lib/metrics";
+import { WellnessSchema } from "../api/lib/intervals";
+import { computeMetrics, mean, sd } from "../api/lib/metrics";
 import type { ActivitySummary } from "../shared/schemas";
 import { wellnessRows } from "./fixtures";
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StoredPlan } from "../shared/schemas";
-import { parsedSummary, toWorkoutText, watchType, whyNotSendable } from "../netlify/functions/lib/workout-text";
+import { parsedSummary, toWorkoutText, watchType, whyNotSendable } from "../api/lib/workout-text";
 
 type Step = StoredPlan["steps"][number];
 const step = (s: Partial<Step>): Step => ({

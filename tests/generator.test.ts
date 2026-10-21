@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Plan, type CheckIn } from "../shared/schemas";
-import { generatePlan } from "../netlify/functions/lib/generator";
-import { strictSchema } from "../netlify/functions/lib/providers/groq";
-import { ProviderError, type Provider, type ProviderAnswer } from "../netlify/functions/lib/providers/types";
+import { generatePlan } from "../api/lib/generator";
+import { strictSchema } from "../api/lib/providers/groq";
+import { ProviderError, type Provider, type ProviderAnswer } from "../api/lib/providers/types";
 
 const checkin: CheckIn = { energy: 4, soreness: 2, motivation: 4, stress: 2, minutes: 60, locations: ["run"], pain: null };
 const ctx = { date: "2026-10-19", checkin, hardDates: [] as string[], maxHardPerWeek: 2 };

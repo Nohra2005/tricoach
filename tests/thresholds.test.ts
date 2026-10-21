@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { AthleteSchema, WellnessSchema } from "../netlify/functions/lib/intervals";
-import { buildThresholds, measuredMaxHr, parsePace, typicalValues } from "../netlify/functions/lib/thresholds";
-import { latestValue } from "../netlify/functions/lib/metrics";
+import { AthleteSchema, WellnessSchema } from "../api/lib/intervals";
+import { buildThresholds, measuredMaxHr, parsePace, typicalValues } from "../api/lib/thresholds";
+import { latestValue } from "../api/lib/metrics";
 import type { ActivitySummary } from "../shared/schemas";
 
 const athlete = AthleteSchema.parse({

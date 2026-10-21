@@ -742,6 +742,56 @@ function Connections() {
   );
 }
 
+// ---------- Import ----------
+
+// Brings in a TriCoach JSON export (for example from the old site). Sent in batches of 10
+// days so each request stays small.
+function ImportPanel() {
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function onFile(file: File) {
+    setBusy(true);
+    setError(null);
+    setStatus("Reading the file...");
+    try {
+      const data = JSON.parse(await file.text()) as { days?: unknown[]; settings?: unknown };
+      if (!Array.isArray(data.days)) throw new Error("This is not a TriCoach JSON export (no days in it).");
+      let imported = 0;
+      const skipped: string[] = [];
+      for (let i = 0; i < data.days.length; i += 10) {
+        setStatus(`Importing ${Math.min(i + 10, data.days.length)} of ${data.days.length} days...`);
+        const r = await api.importData(data.days.slice(i, i + 10), i === 0 ? data.settings : undefined);
+        imported += r.imported;
+        skipped.push(...r.skipped);
+      }
+      setStatus(`Imported ${imported} days${data.settings !== undefined ? " and your preferences" : ""}.${skipped.length ? ` Skipped ${skipped.length} that could not be read: ${skipped.join(", ")}.` : ""}`);
+    } catch (e) {
+      setStatus(null);
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="panel" aria-label="Import">
+      <span className="label">Import</span>
+      <p className="small muted" style={{ marginTop: 4 }}>
+        Bring in a TriCoach JSON export, for example from the old site. Days already here are replaced by the imported ones.
+      </p>
+      <label className="field">
+        <input type="file" accept="application/json,.json" disabled={busy} onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} aria-label="TriCoach JSON export file" />
+      </label>
+      {status && (
+        <p className="small" style={{ marginTop: 8 }}>
+          {status}
+        </p>
+      )}
+      <ErrorBox message={error} />
+    </section>
+  );
+}
+
 // ---------- Export ----------
 
 function Export({ onSignOut, demo }: { onSignOut: () => void; demo: boolean }) {
@@ -777,6 +827,7 @@ function Export({ onSignOut, demo }: { onSignOut: () => void; demo: boolean }) {
             </button>
           </div>
         </section>
+        <ImportPanel />
         <ErrorBox message={error} />
         <button onClick={onSignOut}>{demo ? "Exit demo" : "Sign out"}</button>
       </div>

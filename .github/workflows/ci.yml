@@ -1,5 +1,5 @@
 # Runs the type check, unit tests and production build on every push and pull request.
-# Netlify deploys separately from the same pushes; this catches breakage early.
+# Cloudflare deploys separately from the same pushes; this catches breakage early.
 name: CI
 
 on:
