@@ -66,6 +66,14 @@ describe("buildThresholds (data only)", () => {
     expect(t.bike.lthr).toBeNull(); // the typed LTHR is not used
   });
 
+  it("uses heart rate reserve when the resting HR is known", () => {
+    const t = buildThresholds(athlete, est, { value: 190, basis: "max HR" }, { value: 53, basis: "28-day average" });
+    // Z2 = 53 + 60..70% of (190 - 53)
+    expect(t.heart?.zones[1]).toBe("Z2 Easy: 135 to 149 bpm");
+    expect(t.heart?.zones[4]).toBe("Z5 Maximum: 176 to 190 bpm");
+    expect(t.heart?.basis).toContain("heart rate reserve");
+  });
+
   it("works with no intervals.icu data at all", () => {
     const t = buildThresholds(null, null, null);
     expect(t.bike.threshold).toBeNull();

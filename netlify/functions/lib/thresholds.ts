@@ -78,10 +78,14 @@ function paceZones(s: SportSettings | null, sport: "swim" | "run", thresholdSecs
   });
 }
 
-export function heartZones(maxHr: number): string[] {
+// Zones as % of heart rate reserve (max minus resting), Garmin's "%HRR" option, when the
+// resting HR is known; otherwise as % of max HR, which puts the low zones too low for
+// trained athletes.
+export function heartZones(maxHr: number, restHr: number | null = null): string[] {
+  const rest = restHr !== null && restHr >= 30 && restHr < maxHr - 40 ? restHr : 0;
   return HR_NAMES.map((n, i) => {
-    const lo = Math.round((HR_ZONES[i] * maxHr) / 100);
-    const hi = Math.round((HR_ZONES[i + 1] * maxHr) / 100);
+    const lo = Math.round(rest + (HR_ZONES[i] * (maxHr - rest)) / 100);
+    const hi = Math.round(rest + (HR_ZONES[i + 1] * (maxHr - rest)) / 100);
     return `Z${i + 1} ${n}: ${lo} to ${hi} bpm`;
   });
 }
@@ -112,9 +116,15 @@ export function buildThresholds(
   athlete: Athlete | null,
   est: Estimates | null,
   maxHr: { value: number; basis: string } | null = null,
+  restHr: { value: number; basis: string } | null = null,
 ): Thresholds {
   const notes: string[] = [];
-  const hr = maxHr ? heartZones(maxHr.value) : [];
+  const hr = maxHr ? heartZones(maxHr.value, restHr?.value ?? null) : [];
+  const heartBasis = !maxHr
+    ? "No heart rate data yet"
+    : restHr
+      ? `${maxHr.basis}; resting HR ${Math.round(restHr.value)} bpm (${restHr.basis}); zones are % of heart rate reserve (max minus resting)`
+      : `${maxHr.basis}; zones are % of max HR until there is a resting HR`;
   const out = {} as Thresholds;
 
   for (const sport of ["bike", "run", "swim"] as const) {
@@ -136,7 +146,7 @@ export function buildThresholds(
   }
   if (!maxHr) notes.push("Heart rate zones need a few sessions recorded with heart rate.");
   out.notes = notes;
-  out.heart = { max_hr: maxHr?.value ?? null, basis: maxHr?.basis ?? "No heart rate data yet", zones: hr };
+  out.heart = { max_hr: maxHr?.value ?? null, basis: heartBasis, zones: hr };
   return out;
 }
 

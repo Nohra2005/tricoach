@@ -10,6 +10,14 @@ export const WELLNESS_DAYS = 42;
 export const ACTIVITY_DAYS = 14; // shown on Today and sent session by session
 export const TYPICAL_DAYS = 42; // used for typical paces and power
 
+// Resting HR for heart rate reserve zones: the 28-day average, else the latest value.
+function restingHr(m: Pick<Metrics, "baselines" | "latest" | "today">): { value: number; basis: string } | null {
+  const b = m.baselines.resting_hr;
+  if (b.mean28 !== null && b.n28 >= 7) return { value: b.mean28, basis: `28-day average of ${b.n28} days` };
+  const v = m.today.resting_hr ?? m.latest?.resting_hr?.value ?? null;
+  return v !== null ? { value: v, basis: "latest value" } : null;
+}
+
 // Settings are not needed here any more: every number comes from the data.
 export async function loadMetrics(date: string): Promise<Metrics> {
   const [wellness, acts, athlete, runCurve, swimCurve, maxHrs] = await Promise.all([
@@ -37,7 +45,7 @@ export async function loadMetrics(date: string): Promise<Metrics> {
   const metrics = computeMetrics(date, wellness, all.filter((a) => a.date >= from14), acts.hidden);
   return {
     ...metrics,
-    thresholds: buildThresholds(athlete, estimates, maxHr),
+    thresholds: buildThresholds(athlete, estimates, maxHr, restingHr(metrics)),
     trend: wellness.map((w) => ({ date: w.id, ctl: w.ctl, atl: w.atl })),
     last_pool_length: all.find((a) => a.sport === "swim" && a.pool_length)?.pool_length ?? null,
     typical: typicalValues(all, date, TYPICAL_DAYS),
