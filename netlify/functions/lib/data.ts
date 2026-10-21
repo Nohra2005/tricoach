@@ -31,7 +31,7 @@ export async function loadMetrics(date: string): Promise<Metrics> {
     // Pace curves feed the threshold estimates; also optional.
     getPaceCurve("Run", date, ESTIMATE_DAYS),
     getPaceCurve("Swim", date, ESTIMATE_DAYS),
-    getMaxHeartRates(date).catch(() => [] as number[]),
+    getMaxHeartRates(date).catch(() => []),
   ]);
   const maxHrValue = measuredMaxHr(maxHrs);
   const maxHr = maxHrValue ? { value: maxHrValue, basis: "highest reliable max HR in your sessions over the last 12 months" } : null;

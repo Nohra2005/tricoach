@@ -90,6 +90,24 @@ describe("measuredMaxHr", () => {
     expect(measuredMaxHr([175])).toBe(175);
     expect(measuredMaxHr([null, 90])).toBeNull();
   });
+
+  it("keeps a real max reached once in a hard session", () => {
+    const sessions = [
+      { max: 203, avg: 178 }, // race: high average, so 203 is real
+      { max: 189, avg: 150 },
+      { max: 186, avg: 140 },
+    ];
+    expect(measuredMaxHr(sessions)).toBe(203);
+  });
+
+  it("still drops a spike in an easy session", () => {
+    const sessions = [
+      { max: 214, avg: 132 }, // easy run with a sensor spike
+      { max: 188, avg: 160 },
+      { max: 186, avg: 150 },
+    ];
+    expect(measuredMaxHr(sessions)).toBe(188);
+  });
 });
 
 describe("parsePace", () => {

@@ -90,13 +90,23 @@ export function heartZones(maxHr: number, restHr: number | null = null): string[
   });
 }
 
-// Highest max HR seen in sessions, ignoring a single spike: the top value must be within
-// 5 bpm of the next highest (optical sensors sometimes record one-off spikes).
-export function measuredMaxHr(values: (number | null | undefined)[]): number | null {
-  const v = values.filter((x): x is number => typeof x === "number" && x >= 120 && x <= 225).sort((a, b) => b - a);
+// Highest reliable max HR seen in sessions. Optical sensors sometimes record one-off
+// spikes, so a top value counts only when another session comes within 5 bpm of it, or
+// when it came from a hard session (average HR at least 75% of that max) and is no more
+// than 15 bpm above the next highest. Otherwise the next value is tried.
+export type SessionHr = number | { max: number; avg: number | null } | null | undefined;
+export function measuredMaxHr(values: SessionHr[]): number | null {
+  const v = values
+    .map((x) => (typeof x === "number" ? { max: x, avg: null } : x && typeof x.max === "number" ? x : null))
+    .filter((x): x is { max: number; avg: number | null } => x !== null && x.max >= 120 && x.max <= 225)
+    .sort((a, b) => b.max - a.max);
   if (v.length === 0) return null;
-  for (let i = 0; i < v.length - 1; i++) if (v[i] - v[i + 1] <= 5) return Math.round(v[i]);
-  return Math.round(v[v.length - 1]);
+  for (let i = 0; i < v.length - 1; i++) {
+    const gap = v[i].max - v[i + 1].max;
+    const hard = v[i].avg !== null && v[i].avg! >= 0.75 * v[i].max;
+    if (gap <= 5 || (hard && gap <= 15)) return Math.round(v[i].max);
+  }
+  return Math.round(v[v.length - 1].max);
 }
 
 // A value typed in intervals.icu settings is reported, not used. When it matches the

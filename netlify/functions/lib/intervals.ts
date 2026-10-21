@@ -233,18 +233,22 @@ export async function getPaceCurve(type: "Run" | "Swim", date: string, days: num
 
 // Max HR of every session in the last year, for heart rate zones from data. Asks only
 // for the fields it needs; falls back to full records if that parameter is refused.
-export async function getMaxHeartRates(date: string): Promise<number[]> {
+// Each session's max HR with its average HR, so a real max from a hard session can be
+// told apart from a sensor spike in an easy one.
+export async function getMaxHeartRates(date: string): Promise<{ max: number; avg: number | null }[]> {
   const params = { oldest: addDays(date, -365), newest: addDays(date, 1) };
   let data: unknown;
   try {
-    data = await get("/activities", { ...params, fields: "id,start_date_local,type,max_heartrate" });
+    data = await get("/activities", { ...params, fields: "id,start_date_local,type,max_heartrate,average_heartrate" });
   } catch {
     data = await get("/activities", params);
   }
   const rows = Array.isArray(data) ? data : [];
-  return rows
-    .map((r) => (r && typeof r === "object" ? (r as { max_heartrate?: unknown }).max_heartrate : null))
-    .filter((v): v is number => typeof v === "number");
+  return rows.flatMap((r) => {
+    const o = r && typeof r === "object" ? (r as { max_heartrate?: unknown; average_heartrate?: unknown }) : {};
+    if (typeof o.max_heartrate !== "number") return [];
+    return [{ max: o.max_heartrate, avg: typeof o.average_heartrate === "number" ? o.average_heartrate : null }];
+  });
 }
 
 export async function getAthlete() {
