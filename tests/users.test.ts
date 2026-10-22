@@ -41,6 +41,13 @@ describe("resolveUser", () => {
     expect(() => resolveUser(req({ "x-tricoach-demo": "../users/u1" }), env)).toThrow("Invalid demo id");
   });
 
+  it("accepts USER1_ names for account 1, and they win over the old names", () => {
+    const [a] = configuredUsers({ USER1_NAME: "Tatiana", USER1_PASSCODE: "p", USER1_INTERVALS_API_KEY: "k", USER1_INTERVALS_ATHLETE_ID: "i1" });
+    expect([a.user.id, a.user.name, a.user.intervals]).toEqual(["u1", "Tatiana", { apiKey: "k", athleteId: "i1" }]);
+    const [b] = configuredUsers({ ...env, USER1_NAME: "New name", USER1_PASSCODE: "new-pass" });
+    expect([b.passcode, b.user.name, b.user.intervals?.apiKey]).toEqual(["new-pass", "New name", "k1"]);
+  });
+
   it("skips accounts without a passcode", () => {
     expect(configuredUsers({ APP_PASSCODE: "a", USER3_NAME: "No passcode" }).map((u) => u.user.id)).toEqual(["u1"]);
   });

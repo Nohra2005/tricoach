@@ -10,14 +10,14 @@ import { provider } from "./lib/generator";
 import { PROMPT_VERSION } from "./lib/coach-prompt";
 
 const ENV = [
-  "APP_PASSCODE",
+  "APP_PASSCODE", // account 1's old names, still accepted
   "APP_USER_NAME",
   "INTERVALS_API_KEY",
   "INTERVALS_ATHLETE_ID",
   "GROQ_API_KEY",
   "GROQ_MODEL",
   "DEMO_DAILY_LIMIT",
-  ...[2, 3, 4, 5].flatMap((n) => [`USER${n}_NAME`, `USER${n}_PASSCODE`, `USER${n}_INTERVALS_API_KEY`, `USER${n}_INTERVALS_ATHLETE_ID`]),
+  ...[1, 2, 3, 4, 5].flatMap((n) => [`USER${n}_NAME`, `USER${n}_PASSCODE`, `USER${n}_INTERVALS_API_KEY`, `USER${n}_INTERVALS_ATHLETE_ID`]),
 ];
 
 function fieldCoverage(rows: Record<string, unknown>[], fields: string[]) {
@@ -36,7 +36,7 @@ async function check<T>(fn: () => Promise<T>): Promise<{ ok: true; result: T } |
 
 export default handle(async (req) => {
   // Booleans only: which variables are set, never their values. Unset optional ones are left out.
-  const env = Object.fromEntries(ENV.filter((k) => !/^USER[2-5]_/.test(k) || process.env[k]).map((k) => [k, Boolean(process.env[k])]));
+  const env = Object.fromEntries(ENV.filter((k) => !/^USER[1-5]_/.test(k) || process.env[k]).map((k) => [k, Boolean(process.env[k])]));
   const passcodes = configuredUsers().map((u) => u.passcode);
   const duplicatePasscodes = new Set(passcodes).size !== passcodes.length;
   let user;

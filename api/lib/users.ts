@@ -1,6 +1,7 @@
 // Who is making the request. Accounts are configured with environment variables:
-//   user 1 (the original):  APP_PASSCODE, INTERVALS_API_KEY, INTERVALS_ATHLETE_ID, APP_USER_NAME
-//   users 2 to 5:           USER2_PASSCODE, USER2_INTERVALS_API_KEY, USER2_INTERVALS_ATHLETE_ID, USER2_NAME
+//   user n (1 to 5):  USER<n>_NAME, USER<n>_PASSCODE, USER<n>_INTERVALS_API_KEY, USER<n>_INTERVALS_ATHLETE_ID
+// Account 1 also still accepts the names it had before accounts existed (APP_PASSCODE,
+// APP_USER_NAME, INTERVALS_API_KEY, INTERVALS_ATHLETE_ID); USER1_ wins if both are set.
 // The passcode picks the account. The demo needs no passcode: the browser sends a random
 // sandbox id and gets made-up data, its own storage, and no access to any real account.
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -32,17 +33,19 @@ function same(a: string, b: string): boolean {
 export function configuredUsers(env: NodeJS.ProcessEnv = process.env) {
   const out: { n: number; passcode: string; user: User }[] = [];
   for (let n = 1; n <= MAX_USERS; n++) {
-    const p = n === 1 ? "" : `USER${n}_`;
-    const passcode = env[n === 1 ? "APP_PASSCODE" : `${p}PASSCODE`];
+    const p = `USER${n}_`;
+    // For account 1 the old names are the fallback.
+    const get = (field: string, legacy: string) => env[`${p}${field}`] || (n === 1 ? env[legacy] : undefined);
+    const passcode = get("PASSCODE", "APP_PASSCODE");
     if (!passcode) continue;
-    const apiKey = env[`${p}INTERVALS_API_KEY`];
-    const athleteId = env[`${p}INTERVALS_ATHLETE_ID`];
+    const apiKey = get("INTERVALS_API_KEY", "INTERVALS_API_KEY");
+    const athleteId = get("INTERVALS_ATHLETE_ID", "INTERVALS_ATHLETE_ID");
     out.push({
       n,
       passcode,
       user: {
         id: `u${n}`,
-        name: env[n === 1 ? "APP_USER_NAME" : `${p}NAME`] || `Athlete ${n}`,
+        name: get("NAME", "APP_USER_NAME") || `Athlete ${n}`,
         kind: "athlete",
         storePrefix: n === 1 ? "" : `users/u${n}/`,
         intervals: apiKey && athleteId ? { apiKey, athleteId } : null,

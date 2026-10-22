@@ -23,14 +23,16 @@ Set these in Cloudflare (Workers & Pages > tricoach > Settings > Variables and S
 
 | Name | What |
 |---|---|
-| `APP_USER_NAME` | Optional. Name shown for account 1 |
-| `INTERVALS_API_KEY` | intervals.icu > Settings > Developer Settings > API key |
-| `INTERVALS_ATHLETE_ID` | Your athlete ID, shown on the same page (looks like `i123456`) |
-| `APP_PASSCODE` | Any passcode you choose; the app asks for it once per device |
+| `USER1_NAME` | Optional. Name shown for account 1 |
+| `USER1_INTERVALS_API_KEY` | intervals.icu > Settings > Developer Settings > API key |
+| `USER1_INTERVALS_ATHLETE_ID` | Your athlete ID, shown on the same page (looks like `i123456`) |
+| `USER1_PASSCODE` | Any passcode you choose; the app asks for it once per device |
 | `GROQ_API_KEY` | Free: console.groq.com > API Keys |
 | `GROQ_MODEL` | Optional. Default `openai/gpt-oss-120b` (must support strict structured outputs) |
 
-**More accounts:** for account 2, add `USER2_NAME`, `USER2_PASSCODE`, `USER2_INTERVALS_API_KEY` and `USER2_INTERVALS_ATHLETE_ID` (up to `USER5_...`). Each person needs their own free intervals.icu account linked to their own Garmin. Passcodes must all differ; `/api/health` warns if two match. Cloudflare applies new variables straight away, without a deploy.
+Account 1 also still accepts the names it had before accounts existed (`APP_PASSCODE`, `APP_USER_NAME`, `INTERVALS_API_KEY`, `INTERVALS_ATHLETE_ID`); `USER1_` wins if both are set.
+
+**More accounts:** the same four values with `USER2_` up to `USER5_`. An account exists only once its passcode is set. Each person needs their own free intervals.icu account linked to their own Garmin. Passcodes must all differ; `/api/health` warns if two match. Cloudflare applies new variables straight away, without a deploy.
 
 Groq does not keep inference request data by default ([their data page](https://console.groq.com/docs/your-data)). Your exact free-tier limits are in your Groq account under Settings > Limits; the app needs about 1 to 3 requests a day.
 

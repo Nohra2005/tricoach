@@ -26,5 +26,8 @@
     // One job at a time; a failed job is stored as failed, not retried.
     "consumers": [{ "queue": "tricoach-jobs", "max_batch_size": 1, "max_retries": 0 }]
   },
+  // Variables added in the Cloudflare dashboard (names, athlete ids) are kept when this
+  // file is deployed. Without this, each deploy would delete them.
+  "keep_vars": true,
   "observability": { "enabled": true }
 }
