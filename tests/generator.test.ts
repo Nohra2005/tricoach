@@ -98,3 +98,33 @@ describe("generatePlan", () => {
     expect(r.plan).not.toBeNull();
   });
 });
+
+describe("groq json_validate_failed", () => {
+  const ok = { model: "m", choices: [{ finish_reason: "stop", message: { content: "{}" } }], usage: { prompt_tokens: 1, completion_tokens: 1 } };
+  const bad = () => new Response(JSON.stringify({ error: { message: "Failed to generate JSON", code: "json_validate_failed" } }), { status: 400 });
+  const good = () => new Response(JSON.stringify(ok), { status: 200 });
+  const run = async (responses: (() => Response)[]) => {
+    const { groq } = await import("../api/lib/providers/groq");
+    process.env.GROQ_API_KEY = "test";
+    let calls = 0;
+    const real = globalThis.fetch;
+    globalThis.fetch = (async () => responses[Math.min(calls++, responses.length - 1)]()) as typeof fetch;
+    try {
+      return { result: await groq.ask("s", "u").then((a) => a.raw, (e: Error) => e.message), calls };
+    } finally {
+      globalThis.fetch = real;
+    }
+  };
+
+  it("asks again when the model's JSON did not fit the format", async () => {
+    expect(await run([bad, good])).toEqual({ result: "{}", calls: 2 });
+    expect(await run([bad, bad, good])).toEqual({ result: "{}", calls: 3 });
+  });
+  it("gives up after two repeats, and does not repeat other 400 errors", async () => {
+    const r = await run([bad, bad, bad, good]);
+    expect(r.calls).toBe(3);
+    expect(r.result).toContain("json_validate_failed");
+    const other = await run([() => new Response("nope", { status: 400 }), good]);
+    expect(other.calls).toBe(1);
+  });
+});

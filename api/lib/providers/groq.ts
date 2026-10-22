@@ -59,7 +59,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // On a free-tier rate limit (429), wait for retry-after (at most 90 s) and try again,
 // up to twice. The background function has a 15 minute limit, so waiting is fine.
-async function post(path: string, body: unknown, timeoutMs: number, waits = 2): Promise<unknown> {
+// A 400 "json_validate_failed" means the model wrote JSON that did not fit the format.
+// It happens now and then and is not the athlete's problem, so ask again, up to twice.
+async function post(path: string, body: unknown, timeoutMs: number, waits = 2, badJson = 2): Promise<unknown> {
   let res: Response;
   try {
     res = await fetch(`${BASE()}${path}`, {
@@ -76,10 +78,11 @@ async function post(path: string, body: unknown, timeoutMs: number, waits = 2): 
     const seconds = Number.isFinite(after) && after > 0 ? Math.min(after, 90) : 30;
     await res.body?.cancel();
     await sleep(seconds * 1000);
-    return post(path, body, timeoutMs, waits - 1);
+    return post(path, body, timeoutMs, waits - 1, badJson);
   }
   if (!res.ok) {
     const text = (await res.text()).slice(0, 400);
+    if (res.status === 400 && badJson > 0 && text.includes("json_validate_failed")) return post(path, body, timeoutMs, waits, badJson - 1);
     const hint = res.status === 429 ? " (free-tier rate limit reached; try again later)" : "";
     throw new ProviderError(`Groq API error HTTP ${res.status}${hint}: ${text}`);
   }
